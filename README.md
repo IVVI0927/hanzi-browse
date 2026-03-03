@@ -41,6 +41,8 @@ ai: → "You have 3 open tickets..."
 
 ### 2. Add the MCP server to your AI tool
 
+The browser agent needs an LLM. If you have a Claude or Codex subscription, it uses your existing login — no API key needed. Otherwise, set `ANTHROPIC_API_KEY` in your environment.
+
 <details open>
 <summary><strong>Claude Code</strong></summary>
 
@@ -88,12 +90,9 @@ That's it. Your AI can now use your browser.
 browser_start("Go to Gmail and unsubscribe from all marketing emails from the last week")
 ```
 
-**Form filling** — dump all the context, let the agent handle it
+**Form filling**
 ```
-browser_start(
-  "Apply for the senior engineer position on careers.acme.com",
-  context="Name: Jane Doe, Email: jane@example.com, Experience: 10 years Python..."
-)
+browser_start("Apply for the senior engineer position on careers.acme.com. Name: Jane Doe, Email: jane@example.com, Experience: 10 years Python")
 ```
 
 **Multi-step workflows**
