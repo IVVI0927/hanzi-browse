@@ -110,5 +110,5 @@ The main architectural duplication is gone, but a few gaps still remain:
   - popup-heavy / OAuth / multi-tab flows
   - long-idle TTL cleanup
 
-See [MCP_STATUS.md](/Users/apple/Dev/llm-in-chrome/docs/internal/MCP_STATUS.md)
-for the current validation summary.
+See [PRODUCTION_READINESS.md](/Users/apple/Dev/llm-in-chrome/docs/internal/PRODUCTION_READINESS.md)
+for the current readiness assessment.

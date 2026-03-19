@@ -1,0 +1,250 @@
+/**
+ * @hanzi/browser-agent SDK
+ *
+ * Minimal client for the Hanzi browser automation platform.
+ *
+ * Usage:
+ *   import { HanziClient } from '@hanzi/browser-agent';
+ *
+ *   const client = new HanziClient({
+ *     apiKey: 'hic_live_xxx',
+ *     baseUrl: 'https://api.hanzilla.co', // optional, this is the default
+ *   });
+ *
+ *   // Pair a browser session
+ *   const { pairingToken } = await client.createPairingToken();
+ *   // Give pairingToken to the extension user...
+ *
+ *   // Run a task
+ *   const result = await client.runTask({
+ *     browserSessionId: 'xxx',
+ *     task: 'Go to example.com and read the title',
+ *   });
+ *   console.log(result.answer);
+ */
+
+// --- Types ---
+
+export interface HanziClientOptions {
+  apiKey: string;
+  baseUrl?: string;
+}
+
+export interface TaskCreateParams {
+  browserSessionId: string;
+  task: string;
+  url?: string;
+  context?: string;
+}
+
+export interface TaskRun {
+  id: string;
+  status: "running" | "complete" | "error" | "cancelled";
+  task: string;
+  answer?: string;
+  steps: number;
+  usage: { inputTokens: number; outputTokens: number; apiCalls: number };
+  browserSessionId?: string;
+  createdAt: number;
+  completedAt?: number;
+}
+
+export interface BrowserSession {
+  id: string;
+  status: "connected" | "disconnected";
+  connectedAt: number;
+  lastHeartbeat: number;
+}
+
+export interface PairingTokenResponse {
+  pairingToken: string;
+  expiresAt: number;
+  expiresInSeconds: number;
+}
+
+export interface UsageSummary {
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalApiCalls: number;
+  totalCostUsd: number;
+  taskCount: number;
+}
+
+// --- Client ---
+
+export class HanziClient {
+  private apiKey: string;
+  private baseUrl: string;
+
+  constructor(options: HanziClientOptions) {
+    this.apiKey = options.apiKey;
+    this.baseUrl = (options.baseUrl || "https://api.hanzilla.co").replace(
+      /\/$/,
+      ""
+    );
+  }
+
+  private async request(
+    method: string,
+    path: string,
+    body?: any
+  ): Promise<any> {
+    const res = await fetch(`${this.baseUrl}${path}`, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.apiKey}`,
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new HanziError(
+        data.error || `HTTP ${res.status}`,
+        res.status,
+        data
+      );
+    }
+
+    return data;
+  }
+
+  // --- Browser Sessions ---
+
+  /** Create a pairing token. Give this to the extension user to connect their browser. */
+  async createPairingToken(): Promise<PairingTokenResponse> {
+    const data = await this.request("POST", "/v1/browser-sessions/pair");
+    return {
+      pairingToken: data.pairing_token,
+      expiresAt: data.expires_at,
+      expiresInSeconds: data.expires_in_seconds,
+    };
+  }
+
+  /** List all browser sessions for your workspace. */
+  async listSessions(): Promise<BrowserSession[]> {
+    const data = await this.request("GET", "/v1/browser-sessions");
+    return data.sessions.map((s: any) => ({
+      id: s.id,
+      status: s.status,
+      connectedAt: s.connected_at,
+      lastHeartbeat: s.last_heartbeat,
+    }));
+  }
+
+  // --- Tasks ---
+
+  /** Start a task. Returns immediately with the task ID. */
+  async createTask(params: TaskCreateParams): Promise<TaskRun> {
+    const data = await this.request("POST", "/v1/tasks", {
+      browser_session_id: params.browserSessionId,
+      task: params.task,
+      url: params.url,
+      context: params.context,
+    });
+    return this.normalizeTask(data);
+  }
+
+  /** Get the current status of a task. */
+  async getTask(taskId: string): Promise<TaskRun> {
+    const data = await this.request("GET", `/v1/tasks/${taskId}`);
+    return this.normalizeTask(data);
+  }
+
+  /** Cancel a running task. */
+  async cancelTask(taskId: string): Promise<void> {
+    await this.request("POST", `/v1/tasks/${taskId}/cancel`);
+  }
+
+  /** List recent tasks for your workspace. */
+  async listTasks(): Promise<TaskRun[]> {
+    const data = await this.request("GET", "/v1/tasks");
+    return data.tasks.map((t: any) => this.normalizeTask(t));
+  }
+
+  /**
+   * Run a task and wait for completion. Polls until the task finishes.
+   * This is the main method most integrations should use.
+   */
+  async runTask(
+    params: TaskCreateParams,
+    options?: { pollIntervalMs?: number; timeoutMs?: number }
+  ): Promise<TaskRun> {
+    const pollInterval = options?.pollIntervalMs || 2000;
+    const timeout = options?.timeoutMs || 5 * 60 * 1000;
+    const deadline = Date.now() + timeout;
+
+    const task = await this.createTask(params);
+
+    while (Date.now() < deadline) {
+      await sleep(pollInterval);
+      const current = await this.getTask(task.id);
+      if (current.status !== "running") {
+        return current;
+      }
+    }
+
+    // Timeout — cancel and return
+    try {
+      await this.cancelTask(task.id);
+    } catch {}
+    return this.getTask(task.id);
+  }
+
+  // --- Usage ---
+
+  /** Get usage summary for your workspace. */
+  async getUsage(): Promise<UsageSummary> {
+    return this.request("GET", "/v1/usage");
+  }
+
+  // --- Health ---
+
+  /** Check if the API is reachable. Does not require auth. */
+  async health(): Promise<{ status: string; relayConnected: boolean }> {
+    const res = await fetch(`${this.baseUrl}/v1/health`);
+    const data = await res.json();
+    return {
+      status: data.status,
+      relayConnected: data.relay_connected,
+    };
+  }
+
+  // --- Helpers ---
+
+  private normalizeTask(data: any): TaskRun {
+    return {
+      id: data.id,
+      status: data.status,
+      task: data.task,
+      answer: data.answer,
+      steps: data.steps || 0,
+      usage: data.usage || { inputTokens: 0, outputTokens: 0, apiCalls: 0 },
+      browserSessionId: data.browser_session_id,
+      createdAt: data.created_at,
+      completedAt: data.completed_at,
+    };
+  }
+}
+
+// --- Error ---
+
+export class HanziError extends Error {
+  status: number;
+  data: any;
+
+  constructor(message: string, status: number, data?: any) {
+    super(message);
+    this.name = "HanziError";
+    this.status = status;
+    this.data = data;
+  }
+}
+
+// --- Util ---
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}

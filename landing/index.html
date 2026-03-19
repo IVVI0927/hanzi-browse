@@ -29,6 +29,7 @@
             --accent: #ad5a34;
             --accent-dark: #8d4524;
             --green: #2f4a3d;
+            --purple: #4a3d6b;
             --shadow: 0 16px 40px rgba(54, 38, 23, 0.08);
         }
 
@@ -119,26 +120,24 @@
             background: linear-gradient(135deg, var(--accent), var(--accent-dark));
         }
 
+        .btn-green {
+            color: #fff;
+            border-color: transparent;
+            background: linear-gradient(135deg, var(--green), #1f3a2d);
+        }
+
+        .btn-purple {
+            color: #fff;
+            border-color: transparent;
+            background: linear-gradient(135deg, var(--purple), #362b52);
+        }
+
         .hero {
             display: grid;
             grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
             gap: 42px;
             align-items: center;
             padding: 34px 0 44px;
-        }
-
-        .eyebrow {
-            display: inline-flex;
-            align-items: center;
-            padding: 10px 14px;
-            border-radius: 999px;
-            border: 1px solid #e9d5c8;
-            background: #fcf4ee;
-            color: var(--accent-dark);
-            font-size: 12px;
-            font-weight: 800;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
         }
 
         h1,
@@ -177,7 +176,7 @@
             display: flex;
             gap: 10px;
             flex-wrap: wrap;
-            margin-top: 28px;
+            margin-top: 14px;
         }
 
         .signal-chip {
@@ -197,7 +196,6 @@
             box-shadow: var(--shadow);
             overflow: hidden;
         }
-
 
         .section {
             padding: 56px 0;
@@ -219,6 +217,9 @@
             letter-spacing: 0.08em;
             text-transform: uppercase;
         }
+
+        .section-kicker.green { color: var(--green); }
+        .section-kicker.purple { color: var(--purple); }
 
         h2 {
             margin-top: 10px;
@@ -242,7 +243,8 @@
         .stack-card,
         .diff-card,
         .prompt-card,
-        .cta-band {
+        .cta-band,
+        .path-card {
             border: 1px solid var(--line);
             border-radius: 22px;
             background: var(--surface);
@@ -286,6 +288,100 @@
             padding: 22px;
         }
 
+        /* Two-path cards */
+        .path-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+        }
+
+        .path-card {
+            padding: 28px 24px;
+        }
+
+        .path-card h3 {
+            font-size: 22px;
+            line-height: 1.15;
+            margin-bottom: 10px;
+        }
+
+        .path-card p {
+            color: var(--muted);
+            font-size: 15px;
+            line-height: 1.65;
+            margin-bottom: 16px;
+        }
+
+        .path-steps {
+            display: grid;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .path-step {
+            display: flex;
+            gap: 12px;
+            align-items: baseline;
+            padding: 12px 14px;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.5);
+            font-size: 14px;
+            line-height: 1.5;
+            color: var(--ink);
+        }
+
+        .path-step .step-num {
+            flex-shrink: 0;
+            width: 22px;
+            height: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 800;
+        }
+
+        .step-num-green { background: #e8f0ec; color: var(--green); }
+        .step-num-purple { background: #e8e4f0; color: var(--purple); }
+
+        .path-step code {
+            font-family: "SFMono-Regular", Menlo, Consolas, monospace;
+            font-size: 13px;
+            padding: 2px 6px;
+            border-radius: 6px;
+            background: #f1eadf;
+        }
+
+        /* Mode pills */
+        .mode-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .mode-pill {
+            padding: 14px;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.5);
+        }
+
+        .mode-pill strong {
+            display: block;
+            font-size: 13px;
+            margin-bottom: 4px;
+        }
+
+        .mode-pill span {
+            font-size: 13px;
+            color: var(--muted);
+            line-height: 1.5;
+        }
+
+        /* Prompt cards (skills/emergent) */
         .prompt-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -396,13 +492,6 @@
             font-family: inherit;
         }
 
-        .setup-note code {
-            padding: 2px 6px;
-            border-radius: 8px;
-            background: #f1eadf;
-            font-family: "SFMono-Regular", Menlo, Consolas, monospace;
-        }
-
         .cta-band {
             display: grid;
             grid-template-columns: minmax(0, 1fr) auto;
@@ -441,6 +530,7 @@
             .cta-band,
             .stack-grid,
             .diff-grid,
+            .path-grid,
             .prompt-grid {
                 grid-template-columns: 1fr;
             }
@@ -479,6 +569,10 @@
             .section {
                 padding: 44px 0;
             }
+
+            .mode-row {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
@@ -493,19 +587,22 @@
                 Hanzi
             </a>
             <div class="header-links">
+                <a class="link-pill" href="docs.html">Docs</a>
+                <a class="link-pill" href="pricing.html">Pricing</a>
                 <a class="link-pill" href="https://discord.gg/hahgu5hcA5" target="_blank" rel="noreferrer">Discord</a>
                 <a class="link-pill" href="https://github.com/hanzili/llm-in-chrome" target="_blank" rel="noreferrer">GitHub</a>
             </div>
         </header>
 
         <main>
+            <!-- Hero -->
             <section class="hero">
                 <div class="hero-copy">
                     <h1>Give your AI agent a real browser.</h1>
                     <p>Your agent stops when it needs a browser. <strong>Hanzi lets it keep going</strong> using your real signed-in session.</p>
-                    <div class="setup-copy" style="max-width: 420px; margin-top: 24px;">
-                        <pre>npx hanzi-in-chrome setup</pre>
-                        <button class="copy-btn" data-copy="npx hanzi-in-chrome setup" onclick="copyData(this)">Copy</button>
+                    <div class="hero-actions">
+                        <a class="btn btn-green" href="#use-hanzi">Use Hanzi now</a>
+                        <a class="btn btn-purple" href="#build-with-hanzi">Build with Hanzi</a>
                     </div>
                     <p style="margin-top: 14px; font-size: 14px; color: var(--muted);">Works with Claude Code, Claude Cowork, Cursor, Codex, Windsurf, and more.</p>
                 </div>
@@ -523,6 +620,101 @@
                 </div>
             </section>
 
+            <!-- Two paths -->
+            <section class="section" id="paths">
+                <div class="section-head">
+                    <div>
+                        <div class="section-kicker">Two paths</div>
+                        <h2>Use it or build&nbsp;with&nbsp;it.</h2>
+                    </div>
+                    <p>Hanzi works as a tool inside your AI agent, or as an API you embed in your own product.</p>
+                </div>
+
+                <div class="path-grid">
+                    <!-- Use Hanzi now -->
+                    <div class="path-card" id="use-hanzi">
+                        <div class="section-kicker green" style="margin-bottom: 12px;">Use Hanzi now</div>
+                        <h3>Run browser tasks from your AI agent.</h3>
+                        <p>Install the extension, connect your agent, and start delegating browser work. You provide your own model API key.</p>
+
+                        <div class="path-steps">
+                            <div class="path-step">
+                                <span class="step-num step-num-green">1</span>
+                                Run <code>npx hanzi-in-chrome setup</code>
+                            </div>
+                            <div class="path-step">
+                                <span class="step-num step-num-green">2</span>
+                                Install the Chrome extension when prompted
+                            </div>
+                            <div class="path-step">
+                                <span class="step-num step-num-green">3</span>
+                                Provide credentials (Claude, GPT, Gemini, or custom)
+                            </div>
+                            <div class="path-step">
+                                <span class="step-num step-num-green">4</span>
+                                Ask your agent to do something in the browser
+                            </div>
+                        </div>
+
+                        <div class="mode-row">
+                            <div class="mode-pill">
+                                <strong>Bring your own model</strong>
+                                <span>Use your Claude, GPT, or Gemini API key. Runs locally, no data leaves your machine.</span>
+                            </div>
+                            <div class="mode-pill">
+                                <strong>Managed access</strong>
+                                <span>We handle the AI, no API key needed. Currently available by request &mdash; <a href="mailto:hanzili0217@gmail.com?subject=Managed access" style="color: var(--accent-dark); font-weight: 600;">contact us</a>.</span>
+                            </div>
+                        </div>
+
+                        <a class="btn btn-green" href="docs.html#use-hanzi">Read the quickstart</a>
+                    </div>
+
+                    <!-- Build with Hanzi -->
+                    <div class="path-card" id="build-with-hanzi">
+                        <div class="section-kicker purple" style="margin-bottom: 12px;">Build with Hanzi</div>
+                        <h3>Add browser automation to your product.</h3>
+                        <p>Pair your users' browsers and run tasks from your backend. Your users see your app &mdash; Hanzi is the runtime underneath.</p>
+
+                        <div class="path-steps">
+                            <div class="path-step">
+                                <span class="step-num step-num-purple">1</span>
+                                Sign in and create an API key
+                            </div>
+                            <div class="path-step">
+                                <span class="step-num step-num-purple">2</span>
+                                Create a pairing token and connect a browser
+                            </div>
+                            <div class="path-step">
+                                <span class="step-num step-num-purple">3</span>
+                                Run a task via the REST API or TypeScript SDK
+                            </div>
+                            <div class="path-step">
+                                <span class="step-num step-num-purple">4</span>
+                                Show results in your app
+                            </div>
+                        </div>
+
+                        <div class="setup-copy" style="margin-top: 0; margin-bottom: 16px;">
+                            <pre>import { HanziClient } from '@hanzi/browser-agent';
+
+const client = new HanziClient({ apiKey: 'hic_...' });
+const result = await client.runTask({
+  browserSessionId: session.id,
+  task: 'Read the patient chart on this page',
+});
+console.log(result.answer);</pre>
+                        </div>
+
+                        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                            <a class="btn btn-purple" href="docs.html#build-with-hanzi">Developer guide</a>
+                            <a class="btn" href="https://github.com/hanzili/llm-in-chrome/tree/main/examples/partner-quickstart" target="_blank" rel="noreferrer" style="border-color: var(--purple); color: var(--purple);">Sample app</a>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- How it gets used -->
             <section class="section">
                 <div class="section-head">
                     <div>
@@ -569,11 +761,13 @@
                 </div>
             </section>
 
+            <!-- Bottom CTA -->
             <section class="section">
                 <div class="cta-band">
                     <div>
                         <div class="section-kicker">Start here</div>
                         <h2>One command. Real browser.</h2>
+                        <p>Or <a href="docs.html#build-with-hanzi" style="color: var(--accent-dark); font-weight: 700;">read the developer guide</a> to embed Hanzi in your product.</p>
                     </div>
                     <div class="setup-copy">
                         <pre>npx hanzi-in-chrome setup</pre>
@@ -592,6 +786,8 @@
                 <a href="https://chromewebstore.google.com/detail/hanzi-in-chrome/iklpkemlmbhemkiojndpbhoakgikpmcd" target="_blank" rel="noreferrer">Chrome Web Store</a>
                 <a href="https://x.com/hanzi_li" target="_blank" rel="noreferrer">Twitter</a>
                 <a href="https://www.linkedin.com/in/hanzi-li-mcgill/" target="_blank" rel="noreferrer">LinkedIn</a>
+                <a href="docs.html">Docs</a>
+                <a href="pricing.html">Pricing</a>
                 <a href="mailto:hanzili0217@gmail.com">Contact</a>
             </div>
         </footer>

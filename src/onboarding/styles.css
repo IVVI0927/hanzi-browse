@@ -752,6 +752,55 @@ body {
   margin: 0 auto;
 }
 
+/* ─── Status Items ───────────────────────── */
+
+.status-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+.status-dot {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+}
+
+.status-dot.ok {
+  color: #4CAF50;
+  background: rgba(76, 175, 80, 0.12);
+}
+
+.status-dot.pending {
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+}
+
+.status-label {
+  font-weight: 500;
+}
+
+.status-detail {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
 @media (max-width: 760px) {
   .mode-cards,
   .defaults-grid,

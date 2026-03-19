@@ -22,8 +22,9 @@ export function App() {
     );
   }
 
-  // If onboarding not completed, show a prompt to complete setup
-  if (!config.onboarding.completed) {
+  // Real readiness check: if no models are available, show setup prompt.
+  // Users who set up via CLI will have models already and skip this entirely.
+  if (config.availableModels.length === 0) {
     return (
       <div class="app">
         <div class="empty-state">
@@ -33,15 +34,24 @@ export function App() {
               <path d="M12 6v6l4 2" />
             </svg>
           </div>
-          <h2>Welcome to Hanzi</h2>
-          <p>Complete setup to get started.</p>
-          <button
-            class="btn btn-primary"
-            onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL('dist/onboarding.html') })}
-          >
-            Open Setup
-          </button>
+          <h2>Hanzi needs credentials</h2>
+          <p>Run the setup command in your terminal, or add credentials in settings.</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center', marginTop: '8px' }}>
+            <code style={{ padding: '8px 14px', background: 'var(--surface-secondary)', borderRadius: '8px', fontSize: '13px' }}>npx hanzi-in-chrome setup</code>
+            <button
+              class="btn btn-secondary"
+              onClick={() => setIsSettingsOpen(true)}
+            >
+              Open Settings
+            </button>
+          </div>
         </div>
+        {isSettingsOpen && (
+          <SettingsModal
+            config={config}
+            onClose={() => setIsSettingsOpen(false)}
+          />
+        )}
       </div>
     );
   }

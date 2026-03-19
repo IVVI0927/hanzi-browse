@@ -109,6 +109,30 @@ function useConfig() {
             });
           }
         }
+      } else if (providerId === "vertex" && hasApiKey) {
+        let vertexBaseUrl = "";
+        try {
+          const sa = JSON.parse(hasApiKey);
+          const projectId = sa.project_id;
+          const region = "us-central1";
+          vertexBaseUrl = `https://${region}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${region}`;
+        } catch {
+          console.warn("[Config] Invalid Vertex AI service account JSON");
+        }
+        if (vertexBaseUrl) {
+          for (const model of provider.models) {
+            models.push({
+              name: `${model.name} (Vertex AI)`,
+              provider: "google",
+              // Use GoogleProvider which handles both
+              modelId: model.id,
+              baseUrl: vertexBaseUrl,
+              apiKey: hasApiKey,
+              // The full service account JSON
+              authMethod: "api_key"
+            });
+          }
+        }
       } else if (hasApiKey) {
         for (const model of provider.models) {
           models.push({
@@ -1010,6 +1034,14 @@ function SettingsModal({ config, onClose }) {
       /* @__PURE__ */ u(
         "button",
         {
+          class: `tab ${activeTab === "managed" ? "active" : ""}`,
+          onClick: () => setActiveTab("managed"),
+          children: "Managed"
+        }
+      ),
+      /* @__PURE__ */ u(
+        "button",
+        {
           class: `tab ${activeTab === "license" ? "active" : ""}`,
           onClick: () => setActiveTab("license"),
           children: "License"
@@ -1017,6 +1049,7 @@ function SettingsModal({ config, onClose }) {
       )
     ] }),
     /* @__PURE__ */ u("div", { class: "modal-body", children: [
+      activeTab === "managed" && /* @__PURE__ */ u(ManagedTab, {}),
       activeTab === "providers" && /* @__PURE__ */ u(
         ProvidersTab,
         {
@@ -1112,9 +1145,19 @@ function ProvidersTab({
     selectedProvider && /* @__PURE__ */ u("div", { class: "api-key-input", children: [
       /* @__PURE__ */ u("label", { children: [
         PROVIDERS[selectedProvider].name,
-        " API Key"
+        " ",
+        selectedProvider === "vertex" ? "Service Account JSON" : "API Key"
       ] }),
-      /* @__PURE__ */ u(
+      selectedProvider === "vertex" ? /* @__PURE__ */ u(
+        "textarea",
+        {
+          value: localKeys[selectedProvider] || "",
+          onInput: (e) => setLocalKeys({ ...localKeys, [selectedProvider]: e.target.value }),
+          placeholder: "Paste the entire service account JSON file contents here...",
+          rows: 4,
+          style: { fontFamily: "monospace", fontSize: "0.8em" }
+        }
+      ) : /* @__PURE__ */ u(
         "input",
         {
           type: "password",
@@ -1370,6 +1413,108 @@ function SkillsTab({ userSkills, builtInSkills, skillForm, setSkillForm, onAdd, 
     ] })
   ] });
 }
+const DEFAULT_API_URL = "https://api.hanzilla.co";
+function ManagedTab() {
+  var _a;
+  const [status, setStatus] = d(null);
+  const [pairingToken, setPairingToken] = d("");
+  const [apiUrl, setApiUrl] = d(DEFAULT_API_URL);
+  const [showAdvanced, setShowAdvanced] = d(false);
+  const [message, setMessage] = d("");
+  const [pairing, setPairing] = d(false);
+  y(() => {
+    chrome.runtime.sendMessage({ type: "GET_MANAGED_STATUS" }, (res) => {
+      if (res) setStatus(res);
+    });
+  }, []);
+  const handlePair = () => {
+    if (!pairingToken.trim()) return;
+    setPairing(true);
+    setMessage("");
+    chrome.runtime.sendMessage({
+      type: "MANAGED_PAIR",
+      payload: { pairing_token: pairingToken.trim(), api_url: apiUrl.trim() || DEFAULT_API_URL }
+    }, (res) => {
+      setPairing(false);
+      if (res == null ? void 0 : res.success) {
+        setMessage("");
+        setPairingToken("");
+        setStatus({ isManaged: true, browserSessionId: res.browserSessionId });
+      } else {
+        setMessage(`Failed: ${(res == null ? void 0 : res.error) || "Unknown error"}`);
+      }
+    });
+  };
+  const handleDisconnect = () => {
+    chrome.runtime.sendMessage({ type: "MANAGED_DISCONNECT" }, () => {
+      setStatus({ isManaged: false, browserSessionId: null });
+      setMessage("Disconnected.");
+    });
+  };
+  return /* @__PURE__ */ u("div", { class: "tab-content", children: [
+    /* @__PURE__ */ u("div", { class: "provider-section", children: [
+      /* @__PURE__ */ u("h4", { children: "Pair this browser" }),
+      /* @__PURE__ */ u("p", { class: "provider-desc", children: "Paste a pairing token to connect this browser to a Hanzi workspace. Once paired, your workspace can run tasks in this browser remotely." })
+    ] }),
+    (status == null ? void 0 : status.isManaged) ? /* @__PURE__ */ u("div", { class: "provider-section", children: [
+      /* @__PURE__ */ u("div", { class: "connected-status", children: [
+        /* @__PURE__ */ u("span", { class: "status-badge connected", children: "Paired" }),
+        /* @__PURE__ */ u("code", { style: { fontSize: "0.8em", marginLeft: "8px" }, children: [
+          (_a = status.browserSessionId) == null ? void 0 : _a.slice(0, 8),
+          "..."
+        ] }),
+        /* @__PURE__ */ u("button", { class: "btn btn-secondary btn-sm", onClick: handleDisconnect, style: { marginLeft: "8px" }, children: "Disconnect" })
+      ] }),
+      /* @__PURE__ */ u("p", { class: "provider-desc", style: { marginTop: "8px", fontSize: "0.85em" }, children: "This browser is connected and ready to receive tasks." })
+    ] }) : /* @__PURE__ */ u(k, { children: [
+      /* @__PURE__ */ u("div", { class: "provider-section", children: /* @__PURE__ */ u("div", { class: "api-key-input", children: [
+        /* @__PURE__ */ u("label", { children: "Pairing token" }),
+        /* @__PURE__ */ u(
+          "input",
+          {
+            type: "text",
+            value: pairingToken,
+            onInput: (e) => setPairingToken(e.target.value),
+            placeholder: "hic_pair_...",
+            onKeyDown: (e) => e.key === "Enter" && handlePair(),
+            autoFocus: true
+          }
+        ),
+        /* @__PURE__ */ u("button", { class: "btn btn-primary", onClick: handlePair, disabled: pairing || !pairingToken.trim(), children: pairing ? "Connecting..." : "Connect" })
+      ] }) }),
+      /* @__PURE__ */ u("div", { class: "provider-section", children: [
+        /* @__PURE__ */ u(
+          "button",
+          {
+            class: "btn btn-sm",
+            style: { fontSize: "0.8em", opacity: 0.7, background: "none", border: "none", padding: "4px 0", cursor: "pointer", textDecoration: "underline" },
+            onClick: () => setShowAdvanced(!showAdvanced),
+            children: showAdvanced ? "Hide advanced options" : "Advanced: custom backend URL"
+          }
+        ),
+        showAdvanced && /* @__PURE__ */ u("div", { class: "api-key-input", style: { marginTop: "8px" }, children: [
+          /* @__PURE__ */ u("label", { children: "Backend URL" }),
+          /* @__PURE__ */ u(
+            "input",
+            {
+              type: "text",
+              value: apiUrl,
+              onInput: (e) => setApiUrl(e.target.value),
+              placeholder: DEFAULT_API_URL
+            }
+          ),
+          /* @__PURE__ */ u("p", { class: "provider-desc", style: { fontSize: "0.75em", marginTop: "4px" }, children: "Only change this if you are running a local or custom Hanzi deployment." })
+        ] })
+      ] })
+    ] }),
+    message && /* @__PURE__ */ u("div", { class: "provider-section", children: /* @__PURE__ */ u("p", { class: "provider-desc", style: { marginTop: "4px", color: message.startsWith("Failed") ? "#c62828" : void 0 }, children: message }) }),
+    /* @__PURE__ */ u("div", { class: "provider-section", children: /* @__PURE__ */ u("p", { class: "provider-desc", style: { opacity: 0.6, fontSize: "0.8em" }, children: [
+      "Get a pairing token from the app that is integrating Hanzi, or create one with ",
+      /* @__PURE__ */ u("code", { children: "POST /v1/browser-sessions/pair" }),
+      "."
+    ] }) })
+  ] });
+}
 function PlanModal({ plan, onApprove, onCancel }) {
   return /* @__PURE__ */ u("div", { class: "modal-overlay", children: /* @__PURE__ */ u("div", { class: "modal", children: [
     /* @__PURE__ */ u("div", { class: "modal-header", children: "Review Plan" }),
@@ -1427,23 +1572,35 @@ function App() {
   if (config.isLoading) {
     return /* @__PURE__ */ u("div", { class: "loading-container", children: /* @__PURE__ */ u("div", { class: "loading-spinner" }) });
   }
-  if (!config.onboarding.completed) {
-    return /* @__PURE__ */ u("div", { class: "app", children: /* @__PURE__ */ u("div", { class: "empty-state", children: [
-      /* @__PURE__ */ u("div", { class: "empty-icon", children: /* @__PURE__ */ u("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "1.5", children: [
-        /* @__PURE__ */ u("circle", { cx: "12", cy: "12", r: "10" }),
-        /* @__PURE__ */ u("path", { d: "M12 6v6l4 2" })
-      ] }) }),
-      /* @__PURE__ */ u("h2", { children: "Welcome to Hanzi" }),
-      /* @__PURE__ */ u("p", { children: "Complete setup to get started." }),
-      /* @__PURE__ */ u(
-        "button",
+  if (config.availableModels.length === 0) {
+    return /* @__PURE__ */ u("div", { class: "app", children: [
+      /* @__PURE__ */ u("div", { class: "empty-state", children: [
+        /* @__PURE__ */ u("div", { class: "empty-icon", children: /* @__PURE__ */ u("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "1.5", children: [
+          /* @__PURE__ */ u("circle", { cx: "12", cy: "12", r: "10" }),
+          /* @__PURE__ */ u("path", { d: "M12 6v6l4 2" })
+        ] }) }),
+        /* @__PURE__ */ u("h2", { children: "Hanzi needs credentials" }),
+        /* @__PURE__ */ u("p", { children: "Run the setup command in your terminal, or add credentials in settings." }),
+        /* @__PURE__ */ u("div", { style: { display: "flex", flexDirection: "column", gap: "8px", alignItems: "center", marginTop: "8px" }, children: [
+          /* @__PURE__ */ u("code", { style: { padding: "8px 14px", background: "var(--surface-secondary)", borderRadius: "8px", fontSize: "13px" }, children: "npx hanzi-in-chrome setup" }),
+          /* @__PURE__ */ u(
+            "button",
+            {
+              class: "btn btn-secondary",
+              onClick: () => setIsSettingsOpen(true),
+              children: "Open Settings"
+            }
+          )
+        ] })
+      ] }),
+      isSettingsOpen && /* @__PURE__ */ u(
+        SettingsModal,
         {
-          class: "btn btn-primary",
-          onClick: () => chrome.tabs.create({ url: chrome.runtime.getURL("dist/onboarding.html") }),
-          children: "Open Setup"
+          config,
+          onClose: () => setIsSettingsOpen(false)
         }
       )
-    ] }) });
+    ] });
   }
   const hasMessages = chat.messages.length > 0;
   return /* @__PURE__ */ u("div", { class: "app", children: [

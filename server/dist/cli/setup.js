@@ -127,7 +127,7 @@ function mergeJsonConfig(configPath) {
     try {
         if (!existsSync(configPath)) {
             mkdirSync(join(configPath, '..'), { recursive: true });
-            const config = { mcpServers: { browser: MCP_ENTRY } };
+            const config = { mcpServers: { "hanzi-browser": MCP_ENTRY } };
             writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
             return { agent: agentName, status: 'configured', detail: `created ${configPath}` };
         }
@@ -143,20 +143,20 @@ function mergeJsonConfig(configPath) {
             catch {
                 const bakPath = configPath + '.bak';
                 copyFileSync(configPath, bakPath);
-                config = { mcpServers: { browser: MCP_ENTRY } };
+                config = { mcpServers: { "hanzi-browser": MCP_ENTRY } };
                 writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
                 return { agent: agentName, status: 'configured', detail: `backed up malformed config to ${bakPath}` };
             }
         }
-        if (config.mcpServers?.browser) {
-            const existing = config.mcpServers.browser;
+        if (config.mcpServers?.["hanzi-browser"]) {
+            const existing = config.mcpServers["hanzi-browser"];
             if (existing.command === MCP_ENTRY.command && JSON.stringify(existing.args) === JSON.stringify(MCP_ENTRY.args)) {
                 return { agent: agentName, status: 'already-configured', detail: configPath };
             }
         }
         if (!config.mcpServers)
             config.mcpServers = {};
-        config.mcpServers.browser = MCP_ENTRY;
+        config.mcpServers["hanzi-browser"] = MCP_ENTRY;
         writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
         return { agent: agentName, status: 'configured', detail: `merged into ${configPath}` };
     }
@@ -337,15 +337,54 @@ function detectCredentialSources() {
         found.push({ name: 'Codex CLI', slug: 'codex', path: codexPath });
     return found;
 }
-async function promptCredentials() {
-    console.log('');
-    console.log(`  ${c.dim('step 3')}  ${c.bold('Credentials')}`);
-    console.log(`  ${c.dim('       Connect a model source so the extension can run browser tasks.')}\n`);
-    const skip = await ask('Set up credentials now? Press enter to skip. (y/N): ');
-    if (skip.toLowerCase() !== 'y') {
-        console.log(`\n  ${c.dim('○')}  ${c.dim('Skipped — set up later in the Chrome extension.')}`);
-        return;
+async function promptAccessMode(isInteractive) {
+    if (!isInteractive) {
+        // Non-interactive: default to BYOM, auto-detect credentials
+        return 'byom';
     }
+    console.log('');
+    console.log(`  ${c.dim('step 3')}  ${c.bold('Access mode')}`);
+    console.log(`  ${c.dim('       How should Hanzi access an AI model for browser tasks?')}\n`);
+    console.log(`     ${c.bold('1')}  ${c.green('Use my own model')} ${c.dim('(BYOM)')}`);
+    console.log(`        ${c.dim('Bring your own Claude, GPT, Gemini, or custom API key.')}`);
+    console.log(`        ${c.dim('Everything runs locally — no data leaves your machine.')}`);
+    console.log('');
+    console.log(`     ${c.bold('2')}  ${c.cyan('Hanzi-managed access')}`);
+    console.log(`        ${c.dim('We handle model routing — no API key needed.')}`);
+    console.log(`        ${c.dim('Currently available by request (early access).')}`);
+    console.log('');
+    console.log(`     ${c.dim('s')}  ${c.dim('Skip — set up later')}`);
+    console.log('');
+    const choice = await ask('Choose (1/2/s): ');
+    if (choice === '2')
+        return 'managed';
+    if (choice.toLowerCase() === 's')
+        return 'skip';
+    return 'byom'; // default for '1' or anything else
+}
+// ── Managed access (by request) ──────────────────────────────────────
+async function handleManagedAccess() {
+    console.log('');
+    console.log(`  ${c.cyan('●')}  ${c.bold('Managed access')}`);
+    console.log('');
+    console.log(`     Managed access lets Hanzi handle the AI for you.`);
+    console.log(`     No API key needed — you sign in and connect your browser.`);
+    console.log('');
+    console.log(`     ${c.yellow('This is currently set up by request (early access).')}`);
+    console.log(`     Contact us to get provisioned:`);
+    console.log('');
+    console.log(`     ${c.cyan('Email:')}   hanzili0217@gmail.com`);
+    console.log(`     ${c.cyan('Discord:')} https://discord.gg/hahgu5hcA5`);
+    console.log('');
+    console.log(`     Once you receive a managed token, enter it in the`);
+    console.log(`     Chrome extension: click the Hanzi icon → Settings → Managed tab.`);
+    console.log('');
+}
+// ── BYOM credential setup ────────────────────────────────────────────
+async function promptByomCredentials() {
+    console.log('');
+    console.log(`  ${c.green('●')}  ${c.bold('Bring your own model')}`);
+    console.log(`  ${c.dim('     Connect a model source so the extension can run browser tasks.')}\n`);
     // Connect relay for syncing
     await connectRelay();
     // Auto-detect
@@ -369,7 +408,10 @@ async function promptCredentials() {
     }
     // Manual options
     let addMore = sources.length === 0;
-    if (!addMore) {
+    if (sources.length === 0) {
+        console.log(`     ${c.dim('No existing credentials found. Add one now:')}`);
+    }
+    else {
         console.log('');
         const more = await ask('Add an API key or custom endpoint too? (y/N): ');
         addMore = more.toLowerCase() === 'y';
@@ -421,12 +463,14 @@ async function promptCredentials() {
             break;
         }
     }
+    disconnectRelay();
+}
+function disconnectRelay() {
     if (relay) {
         const origError = console.error;
         console.error = () => { };
         relay.disconnect();
         relay = null;
-        // Restore after a tick so reconnect logs are suppressed
         setTimeout(() => { console.error = origError; }, 500);
     }
 }
@@ -512,10 +556,10 @@ export async function runSetup(options = {}) {
     if (detected.length === 0) {
         if (interactive) {
             console.log(`  ${c.yellow('●')}  No agents found. Add this to your agent's MCP config manually:\n`);
-            console.log(`     ${c.cyan(JSON.stringify({ mcpServers: { browser: MCP_ENTRY } }))}\n`);
+            console.log(`     ${c.cyan(JSON.stringify({ mcpServers: { "hanzi-browser": MCP_ENTRY } }))}\n`);
         }
         else {
-            log(`  ●  No agents found. Add manually: ${JSON.stringify({ mcpServers: { browser: MCP_ENTRY } })}`);
+            log(`  ●  No agents found. Add manually: ${JSON.stringify({ mcpServers: { "hanzi-browser": MCP_ENTRY } })}`);
         }
         return;
     }
@@ -562,39 +606,78 @@ export async function runSetup(options = {}) {
             log(`     ${result.status === 'error' ? '✗' : result.status === 'configured' ? '✓' : '●'}  ${result.agent} — ${status}`);
         }
     }
-    // ── Step 3: Credentials (skippable, interactive only) ──
+    // ── Step 3: Access mode ──
+    let accessMode = 'byom';
     if (interactive) {
-        await promptCredentials();
+        accessMode = await promptAccessMode(interactive);
+        if (accessMode === 'byom') {
+            await promptByomCredentials();
+        }
+        else if (accessMode === 'managed') {
+            await handleManagedAccess();
+        }
+        else {
+            console.log(`\n  ${c.dim('○')}  ${c.dim('Skipped — set up credentials later in the Chrome extension.')}`);
+        }
     }
     else {
-        // Auto-detect and report credentials
+        // Non-interactive: auto-detect and report credentials
         const sources = detectCredentialSources();
         if (sources.length > 0) {
-            log('\n  Step 3: Credentials');
+            log('\n  Step 3: Credentials (auto-detected)');
             for (const source of sources) {
                 log(`     ✓  Found ${source.name} credentials (${source.path})`);
             }
         }
+        else {
+            log('\n  Step 3: No credentials auto-detected.');
+            log('     Add credentials in the Chrome extension settings or re-run setup interactively.');
+        }
     }
     // ── Summary ──
     const errors = results.filter(r => r.status === 'error').length;
+    const hasCreds = detectCredentialSources().length > 0;
     if (interactive) {
         console.log('');
         console.log(`  ${c.bold('◆  Setup complete!')}`);
         console.log('');
         if (configured > 0) {
-            console.log(`     ${c.green('▸')}  Restart your agents to start using Hanzi.`);
+            console.log(`     ${c.green('▸')}  Restart your agents to pick up the new MCP config.`);
         }
-        console.log(`     ${c.green('▸')}  Change credentials anytime in the Chrome extension or sidepanel settings.`);
+        if (accessMode === 'managed') {
+            console.log(`     ${c.cyan('▸')}  Managed access: contact us to get provisioned, then pair in the extension.`);
+        }
+        else if (hasCreds) {
+            console.log(`     ${c.green('▸')}  Credentials detected — Hanzi is ready to use.`);
+        }
+        else {
+            console.log(`     ${c.yellow('▸')}  No credentials configured yet. Add one in the Chrome extension settings.`);
+        }
         if (errors > 0) {
             console.log(`     ${c.red('▸')}  ${errors} agent${errors === 1 ? '' : 's'} failed — check the errors above.`);
+        }
+        console.log('');
+        if (accessMode === 'managed') {
+            console.log(`  ${c.bold('Next:')} once you receive your managed token, enter it in the`);
+            console.log(`  Chrome extension → Settings → Managed tab. Then try a browser task.`);
+        }
+        else if (hasCreds) {
+            console.log(`  ${c.bold('Try it:')} ask your agent to do something in the browser.`);
+            console.log(`  ${c.dim('  Example: "Go to Hacker News and tell me the top 3 stories"')}`);
         }
         console.log('');
     }
     else {
         log('\n  Setup complete!');
         if (configured > 0)
-            log(`     Restart your agents to start using Hanzi.`);
+            log(`     Restart your agents to pick up the new MCP config.`);
+        if (hasCreds) {
+            log('     Credentials detected — Hanzi is ready to use.');
+            log('\n  Try it: ask your agent "Go to Hacker News and tell me the top 3 stories"');
+        }
+        else {
+            log('     No credentials configured yet. Add one in the Chrome extension settings.');
+        }
         if (errors > 0)
             log(`     ${errors} agent(s) failed — check errors above.`);
         log('');

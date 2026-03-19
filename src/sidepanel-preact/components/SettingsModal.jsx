@@ -78,6 +78,12 @@ export function SettingsModal({ config, onClose }) {
             Domain Skills
           </button>
           <button
+            class={`tab ${activeTab === 'managed' ? 'active' : ''}`}
+            onClick={() => setActiveTab('managed')}
+          >
+            Managed
+          </button>
+          <button
             class={`tab ${activeTab === 'license' ? 'active' : ''}`}
             onClick={() => setActiveTab('license')}
           >
@@ -86,6 +92,10 @@ export function SettingsModal({ config, onClose }) {
         </div>
 
         <div class="modal-body">
+          {activeTab === 'managed' && (
+            <ManagedTab />
+          )}
+
           {activeTab === 'providers' && (
             <ProvidersTab
               localKeys={localKeys}
@@ -192,13 +202,23 @@ function ProvidersTab({
 
       {selectedProvider && (
         <div class="api-key-input">
-          <label>{PROVIDERS[selectedProvider].name} API Key</label>
-          <input
-            type="password"
-            value={localKeys[selectedProvider] || ''}
-            onInput={(e) => setLocalKeys({ ...localKeys, [selectedProvider]: e.target.value })}
-            placeholder="Enter API key..."
-          />
+          <label>{PROVIDERS[selectedProvider].name} {selectedProvider === 'vertex' ? 'Service Account JSON' : 'API Key'}</label>
+          {selectedProvider === 'vertex' ? (
+            <textarea
+              value={localKeys[selectedProvider] || ''}
+              onInput={(e) => setLocalKeys({ ...localKeys, [selectedProvider]: e.target.value })}
+              placeholder="Paste the entire service account JSON file contents here..."
+              rows={4}
+              style={{ fontFamily: 'monospace', fontSize: '0.8em' }}
+            />
+          ) : (
+            <input
+              type="password"
+              value={localKeys[selectedProvider] || ''}
+              onInput={(e) => setLocalKeys({ ...localKeys, [selectedProvider]: e.target.value })}
+              placeholder="Enter API key..."
+            />
+          )}
         </div>
       )}
 
@@ -458,6 +478,128 @@ function SkillsTab({ userSkills, builtInSkills, skillForm, setSkillForm, onAdd, 
             ))}
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+const DEFAULT_API_URL = 'https://api.hanzilla.co';
+
+function ManagedTab() {
+  const [status, setStatus] = useState(null);
+  const [pairingToken, setPairingToken] = useState('');
+  const [apiUrl, setApiUrl] = useState(DEFAULT_API_URL);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [message, setMessage] = useState('');
+  const [pairing, setPairing] = useState(false);
+
+  useEffect(() => {
+    chrome.runtime.sendMessage({ type: 'GET_MANAGED_STATUS' }, (res) => {
+      if (res) setStatus(res);
+    });
+  }, []);
+
+  const handlePair = () => {
+    if (!pairingToken.trim()) return;
+    setPairing(true);
+    setMessage('');
+    chrome.runtime.sendMessage({
+      type: 'MANAGED_PAIR',
+      payload: { pairing_token: pairingToken.trim(), api_url: apiUrl.trim() || DEFAULT_API_URL },
+    }, (res) => {
+      setPairing(false);
+      if (res?.success) {
+        setMessage('');
+        setPairingToken('');
+        setStatus({ isManaged: true, browserSessionId: res.browserSessionId });
+      } else {
+        setMessage(`Failed: ${res?.error || 'Unknown error'}`);
+      }
+    });
+  };
+
+  const handleDisconnect = () => {
+    chrome.runtime.sendMessage({ type: 'MANAGED_DISCONNECT' }, () => {
+      setStatus({ isManaged: false, browserSessionId: null });
+      setMessage('Disconnected.');
+    });
+  };
+
+  return (
+    <div class="tab-content">
+      <div class="provider-section">
+        <h4>Pair this browser</h4>
+        <p class="provider-desc">
+          Paste a pairing token to connect this browser to a Hanzi workspace. Once paired, your workspace can run tasks in this browser remotely.
+        </p>
+      </div>
+
+      {status?.isManaged ? (
+        <div class="provider-section">
+          <div class="connected-status">
+            <span class="status-badge connected">Paired</span>
+            <code style={{ fontSize: '0.8em', marginLeft: '8px' }}>{status.browserSessionId?.slice(0, 8)}...</code>
+            <button class="btn btn-secondary btn-sm" onClick={handleDisconnect} style={{ marginLeft: '8px' }}>Disconnect</button>
+          </div>
+          <p class="provider-desc" style={{ marginTop: '8px', fontSize: '0.85em' }}>
+            This browser is connected and ready to receive tasks.
+          </p>
+        </div>
+      ) : (
+        <>
+          <div class="provider-section">
+            <div class="api-key-input">
+              <label>Pairing token</label>
+              <input
+                type="text"
+                value={pairingToken}
+                onInput={(e) => setPairingToken(e.target.value)}
+                placeholder="hic_pair_..."
+                onKeyDown={(e) => e.key === 'Enter' && handlePair()}
+                autoFocus
+              />
+              <button class="btn btn-primary" onClick={handlePair} disabled={pairing || !pairingToken.trim()}>
+                {pairing ? 'Connecting...' : 'Connect'}
+              </button>
+            </div>
+          </div>
+
+          <div class="provider-section">
+            <button
+              class="btn btn-sm"
+              style={{ fontSize: '0.8em', opacity: 0.7, background: 'none', border: 'none', padding: '4px 0', cursor: 'pointer', textDecoration: 'underline' }}
+              onClick={() => setShowAdvanced(!showAdvanced)}
+            >
+              {showAdvanced ? 'Hide advanced options' : 'Advanced: custom backend URL'}
+            </button>
+            {showAdvanced && (
+              <div class="api-key-input" style={{ marginTop: '8px' }}>
+                <label>Backend URL</label>
+                <input
+                  type="text"
+                  value={apiUrl}
+                  onInput={(e) => setApiUrl(e.target.value)}
+                  placeholder={DEFAULT_API_URL}
+                />
+                <p class="provider-desc" style={{ fontSize: '0.75em', marginTop: '4px' }}>
+                  Only change this if you are running a local or custom Hanzi deployment.
+                </p>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {message && (
+        <div class="provider-section">
+          <p class="provider-desc" style={{ marginTop: '4px', color: message.startsWith('Failed') ? '#c62828' : undefined }}>{message}</p>
+        </div>
+      )}
+
+      <div class="provider-section">
+        <p class="provider-desc" style={{ opacity: 0.6, fontSize: '0.8em' }}>
+          Get a pairing token from the app that is integrating Hanzi, or create one with <code>POST /v1/browser-sessions/pair</code>.
+        </p>
       </div>
     </div>
   );

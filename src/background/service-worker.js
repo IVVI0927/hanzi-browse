@@ -41,7 +41,8 @@ import {
 import { showAgentIndicators, hideAgentIndicators, hideIndicatorsForToolUse, showIndicatorsAfterToolUse } from './managers/indicator-manager.js';
 import { ensureTabGroup, addTabToGroup, validateTabInGroup, isTabManagedByAgent, registerTabCleanupListener, initTabManager } from './managers/tab-manager.js';
 import {
-  initMcpBridge, sendMcpUpdate, sendMcpComplete, sendMcpError, sendMcpScreenshot, queryMemory, sendEscalation
+  initMcpBridge, sendMcpUpdate, sendMcpComplete, sendMcpError, sendMcpScreenshot, queryMemory, sendEscalation,
+  setManagedSession, clearManagedSession, getManagedSessionInfo,
 } from './modules/mcp-bridge.js';
 import { checkAndIncrementUsage, activateLicense, getLicenseStatus, deactivateLicense } from './managers/license-manager.js';
 
@@ -1211,6 +1212,53 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       deactivateLicense().then(result => sendResponse(result));
       return true;
 
+    case 'MANAGED_PAIR': {
+      // Exchange a pairing token for a managed session
+      // Also captures the current active tab as the session's browser context
+      const { pairing_token, api_url } = payload;
+      const baseUrl = api_url || 'http://localhost:3456';
+      (async () => {
+        try {
+          // Capture current active tab — this is the browser context the session will own
+          const [activeTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+          const capturedTabId = activeTab?.id || null;
+          const capturedWindowId = activeTab?.windowId || null;
+
+          const res = await fetch(`${baseUrl}/v1/browser-sessions/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pairing_token }),
+          });
+          const data = await res.json();
+
+          if (data.session_token) {
+            setManagedSession(data.session_token, data.browser_session_id, baseUrl);
+            // Persist the captured tab as the session's owned context
+            if (capturedTabId && data.browser_session_id) {
+              const tabMap = (await chrome.storage.local.get('managed_session_tabs')).managed_session_tabs || {};
+              tabMap[data.browser_session_id] = capturedTabId;
+              await chrome.storage.local.set({ managed_session_tabs: tabMap });
+            }
+            sendResponse({ success: true, browserSessionId: data.browser_session_id });
+          } else {
+            sendResponse({ success: false, error: data.error || 'Pairing failed' });
+          }
+        } catch (err) {
+          sendResponse({ success: false, error: err.message });
+        }
+      })();
+      return true;
+    }
+
+    case 'MANAGED_DISCONNECT':
+      clearManagedSession();
+      sendResponse({ success: true });
+      return false;
+
+    case 'GET_MANAGED_STATUS':
+      getManagedSessionInfo().then(info => sendResponse(info));
+      return true; // async
+
     case 'CLEAR_CONVERSATION':
       // Reset state for new conversation
       uiSessionState.currentTask = null;
@@ -1334,12 +1382,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-// Open onboarding tab on first install
+// Open status page on first install
 chrome.runtime.onInstalled.addListener(async (details) => {
   if (details.reason === 'install') {
+    // Check if credentials already exist (e.g. user ran CLI setup first)
+    const config = await chrome.storage.local.get(['providerKeys', 'customModels']);
+    const hasKeys = Object.values(config.providerKeys || {}).some(k => !!k);
+    const hasCustom = (config.customModels || []).length > 0;
+    const alreadyConfigured = hasKeys || hasCustom;
+
     await chrome.storage.local.set({
-      onboarding_completed: false,
-      onboarding_version: 1,
+      onboarding_completed: alreadyConfigured,
+      onboarding_version: 2,
     });
     chrome.tabs.create({ url: chrome.runtime.getURL('dist/onboarding.html') });
   }
@@ -1359,13 +1413,20 @@ chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => 
 
 // mcpSessions is defined at top of file (needed early for popup callbacks)
 
-// Session cleanup interval (clean up sessions older than 1 hour)
+// Session cleanup interval (clean up idle sessions older than 1 hour)
+// IMPORTANT: Only clean up sessions that are NOT currently running.
+// Running sessions may execute for a long time — cleaning them mid-execution
+// causes data loss and orphaned browser windows.
 const MCP_SESSION_TTL_MS = 60 * 60 * 1000; // 1 hour
 setInterval(() => {
   const now = Date.now();
   for (const [sessionId, session] of mcpSessions) {
-    if (now - session.createdAt > MCP_SESSION_TTL_MS) {
-      console.log(`[MCP] Cleaning up old session: ${sessionId}`);
+    // Never clean up a running session
+    if (session.status === 'running') continue;
+    // Use lastActivityAt if available, otherwise fall back to createdAt
+    const lastActive = session.lastActivityAt || session.createdAt;
+    if (now - lastActive > MCP_SESSION_TTL_MS) {
+      console.log(`[MCP] Cleaning up idle session: ${sessionId} (idle since ${new Date(lastActive).toISOString()})`);
       resolvePendingPlan(sessionId, { approved: false });
       unregisterTaskLogging(sessionId);
       unregisterDebuggerSession(sessionId);
@@ -1459,6 +1520,7 @@ async function handleMcpStartTask(sessionId, task, url, context, licenseKey) {
       cancelled: false,   // Per-session cancellation flag
       cancelReason: null,
       createdAt: Date.now(),
+      lastActivityAt: Date.now(), // Updated on status changes; used by TTL cleanup
       // Per-session state for parallel execution:
       screenshots: [],    // Screenshots collected during this task
       debugLog: [],       // Debug log for this task
@@ -1591,6 +1653,7 @@ async function startMcpTaskInternal(sessionId, tabId, task) {
     session.status = result.success ? 'complete' : 'error';
     session.result = result;
     session.endTime = new Date().toISOString();
+    session.lastActivityAt = Date.now();
     void persistMcpSessions();
     // Don't delete session - keep it for continuation
 
@@ -1645,6 +1708,7 @@ async function startMcpTaskInternal(sessionId, tabId, task) {
       session.status = 'stopped';
     }
     session.endTime = new Date().toISOString();
+    session.lastActivityAt = Date.now();
     void persistMcpSessions();
 
     // Log error FIRST (before saveTaskLogs) so it appears in the debug log
@@ -1683,10 +1747,41 @@ async function startMcpTaskInternal(sessionId, tabId, task) {
   }
 }
 
+// Per-session locks to prevent concurrent follow-up message handling.
+// Without this, two follow-ups arriving simultaneously for a non-running session
+// both pass the status check, both await the same runPromise, both reset state,
+// and both start new agent loops — causing two concurrent loops on one session.
+const sessionFollowUpLocks = new Map(); // sessionId → Promise
+
 /**
  * Send follow-up message to MCP task (works on running, complete, or stopped sessions)
  */
 async function handleMcpSendMessage(sessionId, message) {
+  // Serialize follow-up handling per session to prevent concurrent re-activation.
+  // IMPORTANT: Set the lock BEFORE checking for an existing one. This prevents
+  // a TOCTOU race where two calls both find no lock and both proceed.
+  let releaseLock;
+  const lockPromise = new Promise(resolve => { releaseLock = resolve; });
+  const existingLock = sessionFollowUpLocks.get(sessionId);
+  sessionFollowUpLocks.set(sessionId, lockPromise); // Atomically claim the lock
+
+  if (existingLock) {
+    console.log(`[MCP] Waiting for existing follow-up lock on session ${sessionId}`);
+    await existingLock;
+  }
+
+  try {
+    await _handleMcpSendMessageInner(sessionId, message);
+  } finally {
+    // Only delete if we're still the current lock holder (another call may have replaced us)
+    if (sessionFollowUpLocks.get(sessionId) === lockPromise) {
+      sessionFollowUpLocks.delete(sessionId);
+    }
+    releaseLock();
+  }
+}
+
+async function _handleMcpSendMessageInner(sessionId, message) {
   console.log(`[MCP] Follow-up message for ${sessionId}:`, message);
 
   const session = mcpSessions.get(sessionId);
@@ -1718,6 +1813,7 @@ async function handleMcpSendMessage(sessionId, message) {
     session.cancelled = false;
     session.cancelReason = null;
     session.abortController = new AbortController();
+    session.lastActivityAt = Date.now();
     void persistMcpSessions();
 
     // DON'T push to session.messages here — runAgentLoop will add it with
@@ -1763,6 +1859,7 @@ async function handleMcpSendMessage(sessionId, message) {
       role: 'user',
       content: message
     });
+    session.lastActivityAt = Date.now(); // Prevent TTL cleanup during active message injection
     void persistMcpSessions();
     sendMcpUpdate(sessionId, 'running', 'Message received, continuing...');
   }
@@ -1850,6 +1947,7 @@ async function handleMcpStopTask(sessionId, remove = false) {
   } else {
     // Just pause - preserve chat history for resume
     session.status = 'stopped';
+    session.lastActivityAt = Date.now();
     void persistMcpSessions();
   }
 }

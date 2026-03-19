@@ -444,13 +444,26 @@ const PROVIDERS = {
       { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro" }
     ]
   },
+  vertex: {
+    name: "Google Vertex AI",
+    // baseUrl is built dynamically from the service account's project_id
+    baseUrl: "vertex-ai",
+    models: [
+      { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash" },
+      { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro" },
+      { id: "gemini-2.5-flash-lite", name: "Gemini 2.5 Flash Lite" }
+    ]
+  },
   openrouter: {
     name: "OpenRouter",
     baseUrl: "https://openrouter.ai/api/v1/chat/completions",
     models: [
+      { id: "qwen/qwen3-vl-8b-instruct", name: "Qwen3 VL 8B (Self-hostable)" },
+      { id: "qwen/qwen3-vl-32b-instruct", name: "Qwen3 VL 32B" },
       { id: "qwen/qwen3-vl-235b-a22b-thinking", name: "Qwen3 VL 235B (Reasoning)" },
-      { id: "moonshotai/kimi-k2.5", name: "Kimi K2.5 (Reasoning)" },
-      { id: "mistralai/mistral-large-2512", name: "Mistral Large 3" }
+      { id: "qwen/qwen3-vl-30b-a3b-instruct", name: "Qwen3 VL 30B MoE (Self-hostable)" },
+      { id: "google/gemini-2.5-flash", name: "Gemini 2.5 Flash" },
+      { id: "moonshotai/kimi-k2.5", name: "Kimi K2.5 (Reasoning)" }
     ]
   }
 };
