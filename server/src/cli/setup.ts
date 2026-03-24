@@ -553,9 +553,9 @@ async function promptByomCredentials(): Promise<void> {
     anyImported,
     manualEntryChosen,
   });
-  if (flowResult.isErr()) {
+  if (flowResult) {
     console.log('');
-    console.log(`  ${c.yellow('●')}  ${flowResult.error}`);
+    console.log(`  ${c.yellow('●')}  ${flowResult}`);
   }
 
   disconnectRelay();

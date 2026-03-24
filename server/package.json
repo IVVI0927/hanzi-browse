@@ -33,7 +33,6 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.3",
     "better-auth": "^1.5.5",
-    "neverthrow": "^8.2.0",
     "pg": "^8.11.3",
     "stripe": "^20.4.1",
     "undici": "^7.24.5",

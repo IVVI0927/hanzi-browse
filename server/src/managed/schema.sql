@@ -114,6 +114,21 @@ CREATE TABLE IF NOT EXISTS task_runs (
   completed_at TIMESTAMPTZ
 );
 
+CREATE TABLE IF NOT EXISTS task_steps (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  task_run_id UUID NOT NULL REFERENCES task_runs(id) ON DELETE CASCADE,
+  step INTEGER NOT NULL,
+  status TEXT NOT NULL,                    -- 'thinking' | 'tool_use' | 'tool_result' | 'complete' | 'error'
+  tool_name TEXT,
+  tool_input JSONB,
+  output TEXT,                             -- tool result text or final answer
+  screenshot TEXT,                         -- base64 screenshot (if captured)
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  duration_ms INTEGER                      -- time taken for this step
+);
+
+CREATE INDEX IF NOT EXISTS idx_task_steps_task ON task_steps(task_run_id, step);
+
 CREATE TABLE IF NOT EXISTS usage_events (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id UUID NOT NULL REFERENCES workspaces(id),

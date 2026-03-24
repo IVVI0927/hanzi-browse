@@ -136,6 +136,30 @@ export function useConfig() {
             });
           }
         }
+      } else if (providerId === 'vertex' && hasApiKey) {
+        // Vertex AI: extract project_id from service account JSON to build the URL
+        let vertexBaseUrl = '';
+        try {
+          const sa = JSON.parse(hasApiKey);
+          const projectId = sa.project_id;
+          const region = 'us-central1';
+          vertexBaseUrl = `https://${region}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${region}`;
+        } catch {
+          console.warn('[Config] Invalid Vertex AI service account JSON');
+        }
+
+        if (vertexBaseUrl) {
+          for (const model of provider.models) {
+            models.push({
+              name: `${model.name} (Vertex AI)`,
+              provider: 'google', // Use GoogleProvider which handles both
+              modelId: model.id,
+              baseUrl: vertexBaseUrl,
+              apiKey: hasApiKey, // The full service account JSON
+              authMethod: 'api_key',
+            });
+          }
+        }
       } else if (hasApiKey) {
         for (const model of provider.models) {
           models.push({

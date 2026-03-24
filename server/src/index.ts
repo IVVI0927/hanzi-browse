@@ -33,6 +33,9 @@ import {
 import { WebSocketClient } from "./ipc/websocket-client.js";
 import type { NativeMessage } from "./ipc/index.js";
 import { randomUUID } from "crypto";
+import { readFileSync } from "fs";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
 import { exec } from "child_process";
 import { describeCredentials, resolveCredentials } from "./llm/credentials.js";
 import { callLLM } from "./llm/client.js";
@@ -496,6 +499,17 @@ const PROMPTS = [
       { name: "context", description: "Extra context: link to include, images, tone preference, target audience", required: false },
     ],
   },
+  {
+    name: "x-marketer",
+    description: "Find conversations on X/Twitter where people discuss problems your product solves, research each author, draft voice-matched replies, and post from your real signed-in account. Supports three modes: conversations (find pain points), influencers (warm up large accounts), brand (monitor mentions). Loads your voice profile for natural-sounding replies.",
+    arguments: [
+      { name: "product", description: "Product name, URL, and one-line description", required: true },
+      { name: "keywords", description: "Search terms to find relevant conversations (comma-separated)", required: true },
+      { name: "mode", description: "conversations (default), influencers, or brand", required: false },
+      { name: "count", description: "How many engagements per session (default: 10, max: 15)", required: false },
+      { name: "context", description: "Extra context: pain points, competitors to avoid, tone preference", required: false },
+    ],
+  },
 ];
 
 const PROMPT_TEMPLATES: Record<string, (args: Record<string, string>) => { description: string; messages: any[] }> = {
@@ -875,6 +889,47 @@ Posted to [N]/[total] platforms:
 - If browser_start times out, call browser_screenshot to see where it got stuck, then browser_message to continue
 - Don't post images unless I provided them or explicitly asked for them
 - One platform at a time, sequentially — not in parallel`,
+          },
+        },
+      ],
+    };
+  },
+
+  "x-marketer": (args) => {
+    const product = args.product || "";
+    const keywords = args.keywords || "";
+    const mode = args.mode || "conversations";
+    const count = args.count || "10";
+    const context = args.context || "";
+
+    // Read the SKILL.md file for the full workflow
+    const __dirname = dirname(fileURLToPath(import.meta.url));
+    const skillPath = join(__dirname, "..", "skills", "x-marketer", "SKILL.md");
+    let skillContent = "";
+    try {
+      const raw = readFileSync(skillPath, "utf-8");
+      // Strip YAML frontmatter
+      skillContent = raw.replace(/^---[\s\S]*?---\n*/, "");
+    } catch {
+      skillContent = "Error: Could not read x-marketer SKILL.md. Make sure the file exists at server/skills/x-marketer/SKILL.md";
+    }
+
+    return {
+      description: "Find X/Twitter conversations and draft voice-matched replies",
+      messages: [
+        {
+          role: "user",
+          content: {
+            type: "text",
+            text: `Run the x-marketer skill.
+
+Product: ${product}
+Mode: ${mode}
+Keywords: ${keywords}
+Count: ${count}
+${context ? `Extra context: ${context}` : ""}
+
+${skillContent}`,
           },
         },
       ],

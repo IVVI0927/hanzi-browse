@@ -15,6 +15,8 @@ export interface WebSocketClientOptions extends ConnectionOptions {
     relayUrl?: string;
     /** Auto-start relay server if not running (default: true) */
     autoStartRelay?: boolean;
+    /** Extra fields to include in the register message (e.g., relay_secret) */
+    registerExtra?: Record<string, string>;
 }
 /**
  * WebSocket-based connection to the Chrome extension via relay server.

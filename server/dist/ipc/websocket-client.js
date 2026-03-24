@@ -83,6 +83,7 @@ export class WebSocketClient {
                     this.ws.send(JSON.stringify({
                         type: 'register',
                         role: this.options.role,
+                        ...this.options.registerExtra,
                     }));
                     console.error(`[WSClient] Connected as ${this.options.role}`);
                     resolve();

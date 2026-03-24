@@ -1,9 +1,12 @@
 /**
  * LLM Client for MCP Server
  *
- * Raw fetch to Anthropic Messages API with OAuth support.
- * Reuses header logic from native-bridge.cjs for Claude Code impersonation.
- * Auto-refreshes OAuth tokens on 401.
+ * Routes between providers:
+ * - Vertex AI (Gemini) — managed mode, server-side agent loop
+ * - Anthropic — legacy local mode, Claude Code OAuth
+ *
+ * Canonical internal format is Anthropic content blocks.
+ * Vertex provider converts at the API boundary.
  */
 
 import {
@@ -13,6 +16,7 @@ import {
   type CredentialSource,
   type ClaudeCredentials,
 } from "./credentials.js";
+import { callVertexLLM, isVertexConfigured } from "./vertex.js";
 
 export interface ContentBlockText {
   type: "text";
@@ -58,6 +62,8 @@ export interface LLMResponse {
   content: ContentBlock[];
   stop_reason: string;
   usage: { input_tokens: number; output_tokens: number };
+  /** The model that produced this response (for billing attribution) */
+  model?: string;
 }
 
 export interface CallLLMParams {
@@ -241,11 +247,16 @@ async function parseSSEStream(
 }
 
 /**
- * Call the Anthropic Messages API.
+ * Call the LLM. Routes to Vertex AI (Gemini) if configured, otherwise Anthropic.
  *
  * Handles streaming, auto-refresh on 401, and credential resolution.
  */
 export async function callLLM(params: CallLLMParams): Promise<LLMResponse> {
+  // Route to Vertex AI if configured
+  if (isVertexConfigured()) {
+    return callVertexLLM(params);
+  }
+
   const {
     messages,
     system,
@@ -308,7 +319,9 @@ export async function callLLM(params: CallLLMParams): Promise<LLMResponse> {
     );
   }
 
-  return parseSSEStream(response, onText, signal);
+  const result = await parseSSEStream(response, onText, signal);
+  result.model = model;
+  return result;
 }
 
 /**

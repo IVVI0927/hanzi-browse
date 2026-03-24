@@ -1,11 +1,15 @@
 /**
  * LLM Client for MCP Server
  *
- * Raw fetch to Anthropic Messages API with OAuth support.
- * Reuses header logic from native-bridge.cjs for Claude Code impersonation.
- * Auto-refreshes OAuth tokens on 401.
+ * Routes between providers:
+ * - Vertex AI (Gemini) — managed mode, server-side agent loop
+ * - Anthropic — legacy local mode, Claude Code OAuth
+ *
+ * Canonical internal format is Anthropic content blocks.
+ * Vertex provider converts at the API boundary.
  */
 import { resolveCredentials, refreshClaudeToken, saveClaudeCredentials, } from "./credentials.js";
+import { callVertexLLM, isVertexConfigured } from "./vertex.js";
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 const DEFAULT_MODEL = "claude-haiku-4-5-20251001";
 const DEFAULT_MAX_TOKENS = 16384;
@@ -159,11 +163,15 @@ async function parseSSEStream(response, onText, signal) {
     return { content: contentBlocks, stop_reason: stopReason, usage };
 }
 /**
- * Call the Anthropic Messages API.
+ * Call the LLM. Routes to Vertex AI (Gemini) if configured, otherwise Anthropic.
  *
  * Handles streaming, auto-refresh on 401, and credential resolution.
  */
 export async function callLLM(params) {
+    // Route to Vertex AI if configured
+    if (isVertexConfigured()) {
+        return callVertexLLM(params);
+    }
     const { messages, system, tools, model = DEFAULT_MODEL, maxTokens = DEFAULT_MAX_TOKENS, signal, onText, } = params;
     const source = getSource();
     const headers = buildHeaders(source);
@@ -207,7 +215,9 @@ export async function callLLM(params) {
         const errorText = await response.text().catch(() => "");
         throw new Error(`Anthropic API error ${response.status}: ${errorText.slice(0, 300)}`);
     }
-    return parseSSEStream(response, onText, signal);
+    const result = await parseSSEStream(response, onText, signal);
+    result.model = model;
+    return result;
 }
 /**
  * Reset cached credentials (e.g., after manual credential update).

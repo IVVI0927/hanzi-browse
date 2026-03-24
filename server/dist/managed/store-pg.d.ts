@@ -120,6 +120,30 @@ export declare function updateTaskRun(id: string, updates: Partial<TaskRun>): Pr
 export declare function getTaskRun(id: string): Promise<TaskRun | null>;
 export declare function listStuckTasks(maxAgeMs: number): Promise<TaskRun[]>;
 export declare function listTaskRuns(workspaceId: string, limit?: number): Promise<TaskRun[]>;
+export interface TaskStep {
+    id: string;
+    taskRunId: string;
+    step: number;
+    status: string;
+    toolName?: string;
+    toolInput?: Record<string, any>;
+    output?: string;
+    screenshot?: string;
+    createdAt: number;
+    durationMs?: number;
+}
+export declare function insertTaskStep(params: {
+    taskRunId: string;
+    step: number;
+    status: string;
+    toolName?: string;
+    toolInput?: Record<string, any>;
+    output?: string;
+    screenshot?: string;
+    durationMs?: number;
+}): Promise<void>;
+export declare function getTaskSteps(taskRunId: string): Promise<TaskStep[]>;
+export declare function getTaskStepScreenshot(taskRunId: string, step: number): Promise<string | null>;
 export declare function recordUsage(params: {
     workspaceId: string;
     apiKeyId: string;

@@ -211,6 +211,59 @@ export const DOMAIN_SKILLS = [
 - Timeline shows posts in feed - but search is faster for finding specific user's content`
   },
   {
+    domain: 'openemr.io',
+    skill: `OpenEMR (Electronic Health Records) best practices:
+
+## CRITICAL: Iframe-Heavy Layout
+- After login, OpenEMR loads a TABBED IFRAME interface (main.php) with KnockoutJS menus
+- Menu items load content in named iframes: "cal" (calendar), "pat" (patient), "enc" (encounter), "fin" (finder)
+- read_page from the top frame only sees the navigation bar, NOT iframe content
+- ALWAYS use direct URLs to navigate — do NOT click menu items
+
+## Direct URLs (navigate to these directly — much more reliable than clicking menus)
+- Login: /openemr/index.php
+- Patient Finder (searchable list): /openemr/interface/main/finder/dynamic_finder.php
+- Patient search/add form: /openemr/interface/new/new.php
+- Patient chart by ID: /openemr/interface/patient_file/summary/demographics.php?set_pid=NUMBER
+  - set_pid=1 is typically the first patient (e.g., Phil Belford in the demo)
+- Patient history: /openemr/interface/patient_file/history/history_full.php
+- Encounters list: /openemr/interface/patient_file/history/encounters.php
+- Lab results: /openemr/interface/patient_file/summary/labdata.php
+- Issues/problems: /openemr/interface/patient_file/problem_encounter.php
+
+## Patient Finder Page (/interface/main/finder/dynamic_finder.php)
+- Shows a DataTable with columns: Full Name, Home Phone, SSN, Date of Birth, External ID
+- Has search boxes for each column plus a global search
+- Patient names are clickable links but use JavaScript handlers (not direct hrefs)
+- If clicking a patient name doesn't navigate, use the direct chart URL with set_pid=NUMBER instead
+
+## Patient Chart Dashboard (/interface/patient_file/summary/demographics.php)
+- Title: "Medical Record Dashboard - [Patient Name]"
+- Top nav tabs: Dashboard, History, Assessments, Report, Documents, Transactions, Issues, Ledger, External Data
+- Dashboard sections (all visible on one page, scrollable):
+  - Allergies (e.g., penicillin)
+  - Medical Problems (e.g., HTN, Chronic Renal Insufficiency, Anxiety disorder)
+  - Medications (e.g., Norvasc, Lisinopril)
+  - Prescriptions (Drug, Details, Qty, Refills, Filled date)
+  - Care Team
+  - Demographics (Name, DOB, Sex, Address, Phone, SSN, etc.)
+  - Billing (insurance info)
+  - Insurance (primary, secondary, tertiary)
+  - Labs (recent lab values)
+  - Vitals (Blood Pressure, Weight, Height, BMI, Pulse, Temperature, O2 Sat)
+  - Appointments
+  - Immunizations
+  - Health Concerns
+- All sections are on a single scrollable page — use read_page or get_page_text to read everything
+- No need to click into sub-pages for basic patient info
+
+## Login Credentials (Demo)
+- physician / physician (standard clinician access)
+- admin / pass (administrator access)
+- After login, a calendar view in iframes appears — this is NOT useful for reading patient data
+- Navigate directly to the patient finder or chart URL`
+  },
+  {
     domain: 'amazon.com',
     skill: `Amazon best practices:
 - Use the search bar at the top for product search

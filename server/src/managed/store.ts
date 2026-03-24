@@ -454,6 +454,18 @@ export function deleteBrowserSession(id: string, workspaceId: string): boolean {
   return true;
 }
 
+// --- Task Steps (no-op for file store — only persisted in Postgres) ---
+
+export async function insertTaskStep(_params: {
+  taskRunId: string; step: number; status: string;
+  toolName?: string; toolInput?: Record<string, any>;
+  output?: string; screenshot?: string; durationMs?: number;
+}): Promise<void> {}
+
+export async function getTaskSteps(_taskRunId: string): Promise<any[]> { return []; }
+
+export async function getTaskStepScreenshot(_taskRunId: string, _step: number): Promise<string | null> { return null; }
+
 // --- Usage Events ---
 
 export function recordUsage(params: {

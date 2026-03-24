@@ -653,11 +653,25 @@ async function handleMcpCommand(command) {
           } catch {}
         }
 
-        if (!tabId) {
-          // No tab bound yet — create a dedicated tab for this session on first use.
-          // This avoids using the dashboard tab or any other active tab.
+        // Verify the tab still exists — it may have been closed
+        if (tabId) {
           try {
-            const newTab = await chrome.tabs.create({ url: 'about:blank', active: true });
+            await chrome.tabs.get(tabId);
+          } catch {
+            console.log('[MCP Bridge] Bound tab no longer exists, will create new one');
+            tabId = null;
+            managedSessionTabs.delete(execSessionId);
+          }
+        }
+
+        if (!tabId) {
+          // No tab bound yet — create a dedicated tab for the agent to work in.
+          // The agent will navigate to the target page itself.
+          try {
+            // Always create in the last focused window to avoid opening a new window
+            const [focusedWin] = await chrome.windows.getAll({ windowTypes: ['normal'] }).then(wins => wins.filter(w => w.focused));
+            const windowId = focusedWin?.id || (await chrome.windows.getLastFocused())?.id;
+            const newTab = await chrome.tabs.create({ url: 'about:blank', active: false, windowId });
             tabId = newTab.id;
             if (tabId && execSessionId) {
               managedSessionTabs.set(execSessionId, tabId);

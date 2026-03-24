@@ -1,11 +1,12 @@
 /**
  * Google Gemini API Provider
- * Handles Gemini 2.0, 2.5, 3.0 models
+ * Handles Gemini 2.0, 2.5, 3.0 models via Google AI Studio and Vertex AI
  * Supports thought signatures for thinking models
  */
 
 import { BaseProvider } from './base-provider.js';
 import { filterClaudeOnlyTools } from '../../../tools/definitions.js';
+import { getAccessToken, clearTokenCache } from '../vertex-auth.js';
 
 export class GoogleProvider extends BaseProvider {
   getName() {
@@ -13,11 +14,25 @@ export class GoogleProvider extends BaseProvider {
   }
 
   static matchesUrl(baseUrl) {
-    return baseUrl.includes('generativelanguage.googleapis.com');
+    return baseUrl.includes('generativelanguage.googleapis.com')
+      || baseUrl.includes('aiplatform.googleapis.com');
   }
 
-  getHeaders() {
-    // Google uses API key in query parameter, not header
+  _isVertexAI() {
+    return this.config.apiBaseUrl?.includes('aiplatform.googleapis.com');
+  }
+
+  async getHeaders() {
+    if (this._isVertexAI()) {
+      // Vertex AI uses OAuth2 Bearer token from service account
+      const token = await getAccessToken(this.config.apiKey);
+      return {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      };
+    }
+
+    // Google AI Studio uses API key in query parameter, not header
     return {
       'Content-Type': 'application/json',
     };
@@ -26,6 +41,16 @@ export class GoogleProvider extends BaseProvider {
   buildUrl(useStreaming) {
     const baseUrl = this.config.apiBaseUrl;
     const endpoint = useStreaming ? 'streamGenerateContent' : 'generateContent';
+
+    if (this._isVertexAI()) {
+      // Vertex AI URL: {baseUrl}/publishers/google/models/{model}:{endpoint}?alt=sse
+      const streamParam = useStreaming ? '?alt=sse' : '';
+      const url = `${baseUrl}/publishers/google/models/${this.config.model}:${endpoint}${streamParam}`;
+      console.log('[GoogleProvider] Vertex AI URL:', { model: this.config.model });
+      return url;
+    }
+
+    // Google AI Studio URL
     const streamParam = useStreaming ? '&alt=sse' : '';
     const url = `${baseUrl}/${this.config.model}:${endpoint}?key=${this.config.apiKey}${streamParam}`;
     console.log('[GoogleProvider] Building URL:', {
@@ -262,10 +287,21 @@ export class GoogleProvider extends BaseProvider {
             let responseContent = block.content;
             if (Array.isArray(block.content)) {
               // Extract text from array content
-              responseContent = block.content
-                .filter(c => c.type === 'text')
-                .map(c => c.text)
-                .join('\n');
+              const textParts = [];
+              for (const c of block.content) {
+                if (c.type === 'text') {
+                  textParts.push(c.text);
+                } else if (c.type === 'image' && c.source?.data) {
+                  // Add image as inline data part (Gemini supports this)
+                  parts.push({
+                    inlineData: {
+                      mimeType: c.source.media_type || 'image/jpeg',
+                      data: c.source.data,
+                    },
+                  });
+                }
+              }
+              responseContent = textParts.join('\n');
             }
 
             // Look up the function name from the tool_use_id
@@ -275,6 +311,14 @@ export class GoogleProvider extends BaseProvider {
               functionResponse: {
                 name: functionName,
                 response: { result: responseContent },
+              },
+            });
+          } else if (block.type === 'image' && block.source?.data) {
+            // Standalone image block
+            parts.push({
+              inlineData: {
+                mimeType: block.source.media_type || 'image/jpeg',
+                data: block.source.data,
               },
             });
           }

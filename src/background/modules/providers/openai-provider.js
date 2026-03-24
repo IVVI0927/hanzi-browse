@@ -366,7 +366,10 @@ export class OpenAIProvider extends BaseProvider {
           openaiMessages.push(assistantMsg);
 
         } else if (msg.role === 'user') {
-          // User message with tool results
+          // User message with tool results, text, and images
+          // Collect image blocks to attach to a user message after tool results
+          const pendingImages = [];
+
           for (const block of msg.content) {
             if (block.type === 'tool_result') {
               // OpenAI expects role: 'tool' with tool_call_id
@@ -374,11 +377,22 @@ export class OpenAIProvider extends BaseProvider {
               if (typeof block.content === 'string') {
                 content = block.content;
               } else if (Array.isArray(block.content)) {
-                // Handle array content (e.g., text + image)
-                content = block.content
-                  .filter(c => c.type === 'text')
-                  .map(c => c.text)
-                  .join('\n');
+                // Extract text and collect images from tool result content
+                const textParts = [];
+                for (const c of block.content) {
+                  if (c.type === 'text') {
+                    textParts.push(c.text);
+                  } else if (c.type === 'image' && c.source?.data) {
+                    // Queue image to send as a user message (OpenAI tool messages can't contain images)
+                    pendingImages.push({
+                      type: 'image_url',
+                      image_url: {
+                        url: `data:${c.source.media_type || 'image/jpeg'};base64,${c.source.data}`,
+                      },
+                    });
+                  }
+                }
+                content = textParts.join('\n');
               }
 
               openaiMessages.push({
@@ -392,7 +406,26 @@ export class OpenAIProvider extends BaseProvider {
                 role: 'user',
                 content: block.text,
               });
+            } else if (block.type === 'image' && block.source?.data) {
+              // Standalone image block in user message
+              pendingImages.push({
+                type: 'image_url',
+                image_url: {
+                  url: `data:${block.source.media_type || 'image/jpeg'};base64,${block.source.data}`,
+                },
+              });
             }
+          }
+
+          // Send collected images as a user message with vision content
+          if (pendingImages.length > 0) {
+            openaiMessages.push({
+              role: 'user',
+              content: [
+                { type: 'text', text: 'Screenshot of the current page:' },
+                ...pendingImages,
+              ],
+            });
           }
         }
       }

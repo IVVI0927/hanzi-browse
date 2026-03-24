@@ -20,6 +20,8 @@ export interface WebSocketClientOptions extends ConnectionOptions {
   relayUrl?: string;
   /** Auto-start relay server if not running (default: true) */
   autoStartRelay?: boolean;
+  /** Extra fields to include in the register message (e.g., relay_secret) */
+  registerExtra?: Record<string, string>;
 }
 
 /**
@@ -106,6 +108,7 @@ export class WebSocketClient {
           this.ws!.send(JSON.stringify({
             type: 'register',
             role: this.options.role,
+            ...this.options.registerExtra,
           }));
 
           console.error(`[WSClient] Connected as ${this.options.role}`);

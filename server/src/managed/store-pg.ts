@@ -473,6 +473,72 @@ function rowToTaskRun(r: any): TaskRun {
   };
 }
 
+// --- Task Steps ---
+
+export interface TaskStep {
+  id: string;
+  taskRunId: string;
+  step: number;
+  status: string;
+  toolName?: string;
+  toolInput?: Record<string, any>;
+  output?: string;
+  screenshot?: string;
+  createdAt: number;
+  durationMs?: number;
+}
+
+export async function insertTaskStep(params: {
+  taskRunId: string;
+  step: number;
+  status: string;
+  toolName?: string;
+  toolInput?: Record<string, any>;
+  output?: string;
+  screenshot?: string;
+  durationMs?: number;
+}): Promise<void> {
+  await db().query(
+    `INSERT INTO task_steps (task_run_id, step, status, tool_name, tool_input, output, screenshot, created_at, duration_ms)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8)`,
+    [
+      params.taskRunId, params.step, params.status,
+      params.toolName ?? null,
+      params.toolInput ? JSON.stringify(params.toolInput) : null,
+      params.output ?? null,
+      params.screenshot ?? null,
+      params.durationMs ?? null,
+    ]
+  );
+}
+
+export async function getTaskSteps(taskRunId: string): Promise<TaskStep[]> {
+  const res = await db().query(
+    "SELECT * FROM task_steps WHERE task_run_id = $1 ORDER BY step, created_at",
+    [taskRunId]
+  );
+  return res.rows.map((r: any) => ({
+    id: r.id,
+    taskRunId: r.task_run_id,
+    step: r.step,
+    status: r.status,
+    toolName: r.tool_name,
+    toolInput: r.tool_input,
+    output: r.output?.slice(0, 2000),  // truncate for API responses
+    screenshot: r.screenshot ? "present" : undefined,  // don't return full base64 in list
+    createdAt: new Date(r.created_at).getTime(),
+    durationMs: r.duration_ms,
+  }));
+}
+
+export async function getTaskStepScreenshot(taskRunId: string, step: number): Promise<string | null> {
+  const res = await db().query(
+    "SELECT screenshot FROM task_steps WHERE task_run_id = $1 AND step = $2 AND screenshot IS NOT NULL LIMIT 1",
+    [taskRunId, step]
+  );
+  return res.rows[0]?.screenshot ?? null;
+}
+
 // --- Usage Events ---
 
 export async function recordUsage(params: {

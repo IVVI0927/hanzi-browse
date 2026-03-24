@@ -745,7 +745,11 @@ async function runAll() {
   process.exit(0);
 }
 
-runAll().catch((err) => {
-  console.error("\n❌ TEST FAILED:", err.message);
-  process.exit(1);
-});
+// Only run when executed directly (not when imported by vitest)
+const isDirectRun = !process.env.VITEST;
+if (isDirectRun) {
+  runAll().catch((err) => {
+    console.error("\n❌ TEST FAILED:", err.message);
+    process.exit(1);
+  });
+}

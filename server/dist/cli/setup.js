@@ -12,6 +12,7 @@ import { createInterface } from 'readline';
 import { randomUUID } from 'crypto';
 import { isRelayRunning } from '../relay/auto-start.js';
 import { WebSocketClient } from '../ipc/websocket-client.js';
+import { detectCredentialSources as detectSources, checkCredentialFlowResult, } from './detect-credentials.js';
 // ── Style ──────────────────────────────────────────────────────────────
 const c = {
     green: (s) => `\x1b[32m${s}\x1b[0m`,
@@ -326,16 +327,24 @@ async function sendToExtension(type, payload) {
     }
 }
 // ── Credential setup ──────────────────────────────────────────────────
+function keychainHas(service) {
+    if (platform() !== 'darwin')
+        return false;
+    try {
+        execSync(`security find-generic-password -s "${service}" -w 2>/dev/null`, { stdio: 'pipe' });
+        return true;
+    }
+    catch {
+        return false;
+    }
+}
 function detectCredentialSources() {
-    const home = homedir();
-    const found = [];
-    const claudePath = join(home, '.claude', '.credentials.json');
-    if (existsSync(claudePath))
-        found.push({ name: 'Claude Code', slug: 'claude', path: claudePath });
-    const codexPath = join(home, '.codex', 'auth.json');
-    if (existsSync(codexPath))
-        found.push({ name: 'Codex CLI', slug: 'codex', path: codexPath });
-    return found;
+    return detectSources({
+        platform: platform(),
+        homedir: homedir(),
+        fileExists: existsSync,
+        keychainHas,
+    });
 }
 async function promptAccessMode(isInteractive) {
     if (!isInteractive) {
@@ -389,6 +398,8 @@ async function promptByomCredentials() {
     await connectRelay();
     // Auto-detect
     const sources = detectCredentialSources();
+    let anyImported = false;
+    let manualEntryChosen = false;
     if (sources.length > 0) {
         console.log('');
         for (const source of sources) {
@@ -403,6 +414,8 @@ async function promptByomCredentials() {
                 sp.stop(sent
                     ? `${c.green('✓')}  ${source.name} imported`
                     : `${c.yellow('●')}  Could not sync — import from Chrome extension instead`);
+                if (sent)
+                    anyImported = true;
             }
         }
     }
@@ -424,6 +437,7 @@ async function promptByomCredentials() {
         console.log('');
         const choice = await ask('(1/2/d): ');
         if (choice === '1') {
+            manualEntryChosen = true;
             console.log('');
             console.log(`     ${c.bold('a')} Anthropic  ${c.bold('o')} OpenAI  ${c.bold('g')} Google  ${c.bold('r')} OpenRouter`);
             console.log('');
@@ -442,6 +456,7 @@ async function promptByomCredentials() {
             }
         }
         else if (choice === '2') {
+            manualEntryChosen = true;
             console.log('');
             const name = await ask('Display name (e.g. "Ollama Llama 3"): ');
             if (name) {
@@ -462,6 +477,16 @@ async function promptByomCredentials() {
         else {
             break;
         }
+    }
+    // Warn if the user went through setup but configured nothing
+    const flowResult = checkCredentialFlowResult({
+        sourcesDetected: sources.length,
+        anyImported,
+        manualEntryChosen,
+    });
+    if (flowResult) {
+        console.log('');
+        console.log(`  ${c.yellow('●')}  ${flowResult}`);
     }
     disconnectRelay();
 }

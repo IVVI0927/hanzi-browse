@@ -1,14 +1,14 @@
-# Hanzi Partner Quickstart
+# MediAssist — AI Medical Assistant Demo
 
-Minimal example showing how to embed Hanzi browser automation into your product.
+Example app showing how to embed Hanzi browser automation in a medical product. A doctor opens their EHR (Electronic Health Record) in Chrome, pairs their browser, then asks questions about the patient chart through a chat interface.
 
-**What this does:** pair a browser → run a task → show the result.
+This demonstrates the [iAvicenne](https://iavicenne.com) use case: AI assistants that read real clinical data from any EHR system through the browser.
 
 ## Prerequisites
 
 - Node.js 18+
 - A Hanzi API key ([sign in](https://api.hanzilla.co/api/auth/sign-in/social) to your developer console and create one)
-- The [Hanzi Chrome extension](https://chrome.google.com/webstore/detail/iklpkemlmbhemkiojndpbhoakgikpmcd) installed in the browser you want to control
+- The [Hanzi Chrome extension](https://chrome.google.com/webstore/detail/iklpkemlmbhemkiojndpbhoakgikpmcd) installed
 
 ## Setup
 
@@ -22,11 +22,13 @@ Open http://localhost:3000.
 
 ## How it works
 
-1. **Generate pairing token** — your backend calls `POST /v1/browser-sessions/pair`
-2. **User pairs browser** — send them a pairing link (`/pair/{token}`) or embed the `hanzi-pair.js` snippet. Their browser auto-pairs with one click.
-3. **Check sessions** — your backend calls `GET /v1/browser-sessions` to see connected browsers
-4. **Run a task** — your backend calls `POST /v1/tasks` with a task description and session ID
-5. **Show result** — poll `GET /v1/tasks/:id` until complete, then display the answer
+1. **Open a patient chart** — the demo guides you to [OpenEMR](https://demo.openemr.io/openemr/index.php) (login: physician / physician), a free open-source EHR with sample patient data
+2. **Connect your browser** — click "Connect browser", then click the pairing link
+3. **Ask a question** — "What medications is the patient on?"
+4. **Hanzi reads the EHR page** — the AI reads everything visible in the chart
+5. **Answer appears in chat** — clear, concise medical answer based on the chart
+
+Any EHR that runs as a web app works — OpenEMR is just for the demo.
 
 ## Code structure
 
@@ -36,8 +38,8 @@ One file: `server.js` — Express server with 3 API routes and an inline HTML fr
 |-------|-------------|
 | `POST /api/pair` | Creates a pairing token via Hanzi API |
 | `GET /api/sessions` | Lists connected browser sessions |
-| `POST /api/task` | Runs a task and polls until complete |
-| `GET /` | Serves the frontend |
+| `POST /api/task` | Sends a chart-reading task, polls until complete |
+| `GET /` | Serves the MediAssist UI |
 
 ## Environment variables
 
@@ -47,9 +49,9 @@ One file: `server.js` — Express server with 3 API routes and an inline HTML fr
 | `HANZI_API_URL` | No | `https://api.hanzilla.co` |
 | `PORT` | No | `3000` |
 
-## Next steps
+## Adapting for your product
 
-- Replace the inline HTML with your own frontend
+- Replace the medical theme with your own domain
+- Change the task prompt in `askQuestion()` to match what you need read from the browser
 - Store browser session IDs per-user in your database
-- Add error handling and reconnection logic
 - See the [full API reference](https://browse.hanzilla.co/docs.html#build-with-hanzi)

@@ -322,6 +322,10 @@ export function deleteBrowserSession(id, workspaceId) {
     save();
     return true;
 }
+// --- Task Steps (no-op for file store — only persisted in Postgres) ---
+export async function insertTaskStep(_params) { }
+export async function getTaskSteps(_taskRunId) { return []; }
+export async function getTaskStepScreenshot(_taskRunId, _step) { return null; }
 // --- Usage Events ---
 export function recordUsage(params) {
     // Gemini 2.5 Flash pricing

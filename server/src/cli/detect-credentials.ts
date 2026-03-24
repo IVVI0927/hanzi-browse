@@ -9,7 +9,6 @@
  */
 
 import { join } from 'path';
-import { ok, err, Result } from 'neverthrow';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -59,15 +58,17 @@ export function detectCredentialSources(opts: DetectOptions): CredentialSource[]
 
 // ── Flow state check ─────────────────────────────────────────────────
 
+/**
+ * Returns an error message if setup finished with no credentials configured,
+ * or null if everything is fine.
+ */
 export function checkCredentialFlowResult(
   state: CredentialFlowState,
-): Result<null, string> {
-  if (state.sourcesDetected === 0) return ok(null);
-  if (state.anyImported) return ok(null);
-  if (state.manualEntryChosen) return ok(null);
+): string | null {
+  if (state.sourcesDetected === 0) return null;
+  if (state.anyImported) return null;
+  if (state.manualEntryChosen) return null;
 
-  return err(
-    'No credentials configured. The extension needs a model source to run tasks.\n'
-    + 'Add one later in the Chrome extension sidepanel → Settings.',
-  );
+  return 'No credentials configured. The extension needs a model source to run tasks.\n'
+    + 'Add one later in the Chrome extension sidepanel → Settings.';
 }

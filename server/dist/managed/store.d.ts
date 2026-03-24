@@ -142,6 +142,18 @@ export declare function getBrowserSession(id: string): BrowserSession | null;
 export declare function getBrowserSessionByToken(sessionToken: string): BrowserSession | null;
 export declare function listBrowserSessions(workspaceId?: string): BrowserSession[];
 export declare function deleteBrowserSession(id: string, workspaceId: string): boolean;
+export declare function insertTaskStep(_params: {
+    taskRunId: string;
+    step: number;
+    status: string;
+    toolName?: string;
+    toolInput?: Record<string, any>;
+    output?: string;
+    screenshot?: string;
+    durationMs?: number;
+}): Promise<void>;
+export declare function getTaskSteps(_taskRunId: string): Promise<any[]>;
+export declare function getTaskStepScreenshot(_taskRunId: string, _step: number): Promise<string | null>;
 export declare function recordUsage(params: {
     workspaceId: string;
     apiKeyId: string;

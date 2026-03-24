@@ -449,15 +449,42 @@ async function handleCreateTask(
     log.error("Task timed out", { requestId, taskId: taskRun.id, workspaceId: apiKey.workspaceId }, { timeoutMinutes: TASK_TIMEOUT_MS / 60000 });
   }, TASK_TIMEOUT_MS);
 
+  // Track current step for screenshot association
+  let currentStep = 0;
+
   // Run agent loop in background
   runAgentLoop({
     task,
     url,
     context,
-    executeTool: (toolName, toolInput) =>
-      executeToolViaRelay(toolName, toolInput, browser_session_id),
+    executeTool: async (toolName, toolInput) => {
+      const startMs = Date.now();
+      const result = await executeToolViaRelay(toolName, toolInput, browser_session_id);
+      // Save screenshot from tool result (best-effort)
+      if (result.screenshot?.data) {
+        S.insertTaskStep({
+          taskRunId: taskRun.id,
+          step: currentStep,
+          status: "screenshot",
+          toolName,
+          screenshot: result.screenshot.data,
+          durationMs: Date.now() - startMs,
+        }).catch(() => {});
+      }
+      return result;
+    },
     onStep: (step) => {
+      currentStep = step.step;
       S.updateTaskRun(taskRun.id, { steps: step.step });
+      // Persist step details for observability
+      S.insertTaskStep({
+        taskRunId: taskRun.id,
+        step: step.step,
+        status: step.status,
+        toolName: step.toolName,
+        toolInput: step.toolInput,
+        output: step.text,
+      }).catch(() => {}); // best-effort, don't block agent loop
     },
     maxSteps: 50,
     signal: abort.signal,
@@ -894,7 +921,7 @@ async function handleRequest(
       return;
     }
 
-    const taskMatch = url?.match(/^\/v1\/tasks\/([^/]+)(\/cancel)?$/);
+    const taskMatch = url?.match(/^\/v1\/tasks\/([^/]+)(\/cancel|\/steps|\/screenshots\/(\d+))?$/);
     if (taskMatch) {
       const taskId = taskMatch[1];
       const run = await S.getTaskRun(taskId);
@@ -907,6 +934,27 @@ async function handleRequest(
       // Enforce workspace ownership
       if (run.workspaceId !== apiKey.workspaceId) {
         sendJson(req, res, 404, { error: "Task not found" }); // 404, not 403 — don't leak existence
+        return;
+      }
+
+      // GET /v1/tasks/:id/steps — execution timeline
+      if (method === "GET" && taskMatch[2] === "/steps") {
+        const steps = await S.getTaskSteps(taskId);
+        sendJson(req, res, 200, { steps });
+        return;
+      }
+
+      // GET /v1/tasks/:id/screenshots/:step — screenshot at a specific step
+      if (method === "GET" && taskMatch[3]) {
+        const stepNum = parseInt(taskMatch[3], 10);
+        const screenshot = await S.getTaskStepScreenshot(taskId, stepNum);
+        if (!screenshot) {
+          sendJson(req, res, 404, { error: "No screenshot at this step" });
+          return;
+        }
+        const buf = Buffer.from(screenshot, "base64");
+        res.writeHead(200, { "Content-Type": "image/jpeg", "Content-Length": buf.length });
+        res.end(buf);
         return;
       }
 
