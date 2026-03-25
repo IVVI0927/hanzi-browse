@@ -599,12 +599,12 @@
             <section class="hero">
                 <div class="hero-copy">
                     <h1>Give your AI agent a real browser.</h1>
-                    <p>Your agent stops when it needs a browser. <strong>Hanzi lets it keep going</strong> using your real signed-in session.</p>
+                    <p>Your agent stops when it needs a browser. <strong>Hanzi lets it keep going</strong> using your real signed-in session. 20 free tasks/month.</p>
                     <div class="hero-actions">
-                        <a class="btn btn-green" href="#use-hanzi">Use Hanzi now</a>
-                        <a class="btn btn-purple" href="#build-with-hanzi">Build with Hanzi</a>
+                        <a class="btn btn-primary" href="#get-started">Get started free</a>
+                        <a class="btn" href="#byom" style="color: var(--muted);">or bring your own model</a>
                     </div>
-                    <p style="margin-top: 14px; font-size: 14px; color: var(--muted);">Works with Claude Code, Claude Cowork, Cursor, Codex, Windsurf, and more.</p>
+                    <p style="margin-top: 14px; font-size: 14px; color: var(--muted);">Works with Claude Code, Cursor, Codex, Windsurf, and more. No API key needed.</p>
                 </div>
 
                 <div class="demo-panel">
@@ -620,22 +620,60 @@
                 </div>
             </section>
 
-            <!-- Two paths -->
-            <section class="section" id="paths">
+            <!-- Get started -->
+            <section class="section" id="get-started">
                 <div class="section-head">
                     <div>
-                        <div class="section-kicker">Two paths</div>
-                        <h2>Use it or build&nbsp;with&nbsp;it.</h2>
+                        <div class="section-kicker">Get started</div>
+                        <h2>One command. Real&nbsp;browser.</h2>
                     </div>
                     <p>Hanzi works as a tool inside your AI agent, or as an API you embed in your own product.</p>
                 </div>
 
                 <div class="path-grid">
-                    <!-- Use Hanzi now -->
-                    <div class="path-card" id="use-hanzi">
-                        <div class="section-kicker green" style="margin-bottom: 12px;">Use Hanzi now</div>
-                        <h3>Run browser tasks from your AI agent.</h3>
-                        <p>Install the extension, connect your agent, and start delegating browser work. You provide your own model API key.</p>
+                    <!-- Managed (primary) -->
+                    <div class="path-card" id="use-hanzi" style="border-color: var(--accent);">
+                        <div class="section-kicker" style="margin-bottom: 12px; color: var(--accent-dark);">Recommended</div>
+                        <h3>20 free tasks. No API key needed.</h3>
+                        <p>We handle the AI. You just tell your agent what to do in the browser.</p>
+
+                        <div class="path-steps">
+                            <div class="path-step">
+                                <span class="step-num" style="background: var(--accent-dark);">1</span>
+                                Run <code>npx hanzi-in-chrome setup</code>
+                            </div>
+                            <div class="path-step">
+                                <span class="step-num" style="background: var(--accent-dark);">2</span>
+                                Choose <strong>Hanzi managed</strong> when prompted
+                            </div>
+                            <div class="path-step">
+                                <span class="step-num" style="background: var(--accent-dark);">3</span>
+                                Sign in with Google, paste your API key
+                            </div>
+                            <div class="path-step">
+                                <span class="step-num" style="background: var(--accent-dark);">4</span>
+                                Ask your agent to do something in the browser
+                            </div>
+                        </div>
+
+                        <div class="mode-row">
+                            <div class="mode-pill">
+                                <strong>20 free tasks/month</strong>
+                                <span>Then $0.05 per completed task. Errors and timeouts are free.</span>
+                            </div>
+                        </div>
+
+                        <div class="setup-copy" style="margin-bottom: 12px;">
+                            <pre>npx hanzi-in-chrome setup</pre>
+                            <button class="copy-btn" data-copy="npx hanzi-in-chrome setup" onclick="copyData(this)">Copy</button>
+                        </div>
+                    </div>
+
+                    <!-- BYOM (secondary) -->
+                    <div class="path-card" id="byom">
+                        <div class="section-kicker green" style="margin-bottom: 12px;">Bring your own model</div>
+                        <h3>Free forever. You provide the AI.</h3>
+                        <p>Use your own Claude, GPT, or Gemini API key. Everything runs locally &mdash; no data leaves your machine.</p>
 
                         <div class="path-steps">
                             <div class="path-step">
@@ -644,26 +682,15 @@
                             </div>
                             <div class="path-step">
                                 <span class="step-num step-num-green">2</span>
-                                Install the Chrome extension when prompted
+                                Choose <strong>Use my own model</strong>
                             </div>
                             <div class="path-step">
                                 <span class="step-num step-num-green">3</span>
-                                Provide credentials (Claude, GPT, Gemini, or custom)
+                                Provide your API key (Claude, GPT, Gemini, or custom)
                             </div>
                             <div class="path-step">
                                 <span class="step-num step-num-green">4</span>
                                 Ask your agent to do something in the browser
-                            </div>
-                        </div>
-
-                        <div class="mode-row">
-                            <div class="mode-pill">
-                                <strong>Bring your own model</strong>
-                                <span>Use your Claude, GPT, or Gemini API key. Runs locally, no data leaves your machine.</span>
-                            </div>
-                            <div class="mode-pill">
-                                <strong>Managed access</strong>
-                                <span>We handle the AI, no API key needed. Currently available by request &mdash; <a href="mailto:hanzili0217@gmail.com?subject=Managed access" style="color: var(--accent-dark); font-weight: 600;">contact us</a>.</span>
                             </div>
                         </div>
 
@@ -770,38 +797,27 @@ console.log(result.answer);</pre>
                     </div>
                     <p>API access is free during early access. Usage-based pricing coming later.</p>
                 </div>
-                <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px;">
+                <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; max-width: 700px;">
+                    <div class="stack-card" style="padding: 22px; border-color: var(--accent);">
+                        <span style="display: inline-block; margin-bottom: 10px; padding: 4px 10px; border-radius: 999px; background: #fceee4; color: var(--accent-dark); font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase;">Managed</span>
+                        <h3 style="font-size: 28px; font-family: 'Iowan Old Style', Georgia, serif; margin-bottom: 4px;">$0.05 <span style="font-size: 14px; font-weight: 400; color: var(--muted);">/ task</span></h3>
+                        <p style="font-size: 13px; color: var(--muted); margin-bottom: 14px;">20 free tasks/month included</p>
+                        <ul style="list-style: none; font-size: 14px; line-height: 2;">
+                            <li>We handle the AI &mdash; no API key needed</li>
+                            <li>Only charged for completed tasks</li>
+                            <li>Errors and timeouts are free</li>
+                            <li>REST API + MCP + TypeScript SDK</li>
+                        </ul>
+                    </div>
                     <div class="stack-card" style="padding: 22px;">
                         <span style="display: inline-block; margin-bottom: 10px; padding: 4px 10px; border-radius: 999px; background: #e8f0ec; color: var(--green); font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase;">BYOM</span>
                         <h3 style="font-size: 28px; font-family: 'Iowan Old Style', Georgia, serif; margin-bottom: 4px;">Free</h3>
-                        <p style="font-size: 13px; color: var(--muted); margin-bottom: 14px;">You provide the AI model</p>
+                        <p style="font-size: 13px; color: var(--muted); margin-bottom: 14px;">You provide your own AI model</p>
                         <ul style="list-style: none; font-size: 14px; line-height: 2;">
-                            <li>Chrome extension + MCP server</li>
-                            <li>All browser tools</li>
+                            <li>Use your Claude, GPT, or Gemini key</li>
+                            <li>Everything runs locally</li>
                             <li>No data leaves your machine</li>
-                            <li>Works with any MCP agent</li>
-                        </ul>
-                    </div>
-                    <div class="stack-card" style="padding: 22px; border-color: var(--accent);">
-                        <span style="display: inline-block; margin-bottom: 10px; padding: 4px 10px; border-radius: 999px; background: #fceee4; color: var(--accent-dark); font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase;">Managed · early access</span>
-                        <h3 style="font-size: 28px; font-family: 'Iowan Old Style', Georgia, serif; margin-bottom: 4px;">TBD</h3>
-                        <p style="font-size: 13px; color: var(--muted); margin-bottom: 14px;">We handle the AI</p>
-                        <ul style="list-style: none; font-size: 14px; line-height: 2;">
-                            <li>Server-side agent execution</li>
-                            <li>No model or API key setup</li>
-                            <li>Usage tracking via API</li>
-                            <li>Available by request</li>
-                        </ul>
-                    </div>
-                    <div class="stack-card" style="padding: 22px;">
-                        <span style="display: inline-block; margin-bottom: 10px; padding: 4px 10px; border-radius: 999px; background: #e8e4f0; color: var(--purple); font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase;">API · early access</span>
-                        <h3 style="font-size: 28px; font-family: 'Iowan Old Style', Georgia, serif; margin-bottom: 4px;">Free</h3>
-                        <p style="font-size: 13px; color: var(--muted); margin-bottom: 14px;">During early access</p>
-                        <ul style="list-style: none; font-size: 14px; line-height: 2;">
-                            <li>REST API + TypeScript SDK</li>
-                            <li>Self-serve API key creation</li>
-                            <li>Session-based browser routing</li>
-                            <li>Usage tracking via API</li>
+                            <li>Unlimited tasks</li>
                         </ul>
                     </div>
                 </div>
@@ -812,8 +828,8 @@ console.log(result.answer);</pre>
                 <div class="cta-band">
                     <div>
                         <div class="section-kicker">Start here</div>
-                        <h2>One command. Real browser.</h2>
-                        <p>Or <a href="docs.html#build-with-hanzi" style="color: var(--accent-dark); font-weight: 700;">read the developer guide</a> to embed Hanzi in your product.</p>
+                        <h2>One command. 20 free tasks.</h2>
+                        <p>No API key needed. Or <a href="#byom" style="color: var(--green); font-weight: 700;">bring your own model</a> for free unlimited use.</p>
                     </div>
                     <div class="setup-copy">
                         <pre>npx hanzi-in-chrome setup</pre>
