@@ -1,0 +1,156 @@
+/**
+ * Anonymous telemetry for local MCP users.
+ *
+ * Collects error reports and usage stats to improve Hanzi.
+ * Opt out: `hanzi-browse telemetry off` or set DO_NOT_TRACK=1
+ *
+ * Never sends: task content, URLs, API keys, file paths, PII.
+ */
+
+import * as Sentry from "@sentry/node";
+import { PostHog } from "posthog-node";
+import { homedir } from "os";
+import { join, dirname } from "path";
+import { readFileSync, writeFileSync, mkdirSync } from "fs";
+import { randomUUID } from "crypto";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+const CONFIG_DIR = join(homedir(), ".hanzi-browse");
+const CONFIG_PATH = join(CONFIG_DIR, "config.json");
+
+// Placeholder DSNs — will be replaced with real values in Task 8
+const SENTRY_DSN = "__SENTRY_DSN_MCP__";
+const POSTHOG_KEY = "__POSTHOG_API_KEY__";
+const POSTHOG_HOST = "https://us.i.posthog.com";
+
+let posthog: PostHog | null = null;
+let anonymousId: string | null = null;
+let enabled = false;
+let initialized = false;
+let version = "0.0.0";
+
+interface TelemetryConfig {
+  telemetry?: boolean;
+  anonymousId?: string;
+}
+
+function readConfig(): TelemetryConfig {
+  try {
+    return JSON.parse(readFileSync(CONFIG_PATH, "utf-8"));
+  } catch {
+    return {};
+  }
+}
+
+function writeConfig(config: TelemetryConfig): void {
+  mkdirSync(CONFIG_DIR, { recursive: true });
+  writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + "\n");
+}
+
+export function isTelemetryEnabled(): boolean {
+  if (process.env.DO_NOT_TRACK === "1") return false;
+  if (process.env.HANZI_TELEMETRY === "0") return false;
+  const config = readConfig();
+  return config.telemetry !== false;
+}
+
+export function setTelemetryEnabled(value: boolean): void {
+  const config = readConfig();
+  config.telemetry = value;
+  writeConfig(config);
+}
+
+function getAnonymousId(): string {
+  const config = readConfig();
+  if (config.anonymousId) return config.anonymousId;
+  const id = randomUUID();
+  config.anonymousId = id;
+  if (config.telemetry === undefined) {
+    config.telemetry = true;
+    console.error(
+      '\x1b[2mHanzi collects anonymous error reports and usage stats to improve the tool.\n' +
+      'Run "hanzi-browse telemetry off" to disable.\x1b[0m'
+    );
+  }
+  writeConfig(config);
+  return id;
+}
+
+export function initTelemetry(): void {
+  if (initialized) return;
+  initialized = true;
+
+  // Read version from package.json
+  try {
+    const pkg = JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf-8"));
+    version = pkg.version || "0.0.0";
+  } catch {}
+
+  // Don't init SDKs if placeholders haven't been replaced
+  if (SENTRY_DSN.startsWith("__") || POSTHOG_KEY.startsWith("__")) return;
+
+  enabled = isTelemetryEnabled();
+  if (!enabled) return;
+
+  anonymousId = getAnonymousId();
+
+  Sentry.init({
+    dsn: SENTRY_DSN,
+    environment: "local",
+    release: `hanzi-browse@${version}`,
+    beforeSend(event) {
+      if (event.exception?.values) {
+        for (const ex of event.exception.values) {
+          if (ex.stacktrace?.frames) {
+            for (const frame of ex.stacktrace.frames) {
+              if (frame.filename) {
+                const match = frame.filename.match(/hanzi-browse\/(.+)/);
+                frame.filename = match ? match[1] : "<scrubbed>";
+              }
+            }
+          }
+        }
+      }
+      delete event.user;
+      delete event.server_name;
+      event.tags = { ...event.tags, anonymousId };
+      return event;
+    },
+  });
+
+  Sentry.setTag("os", process.platform);
+  Sentry.setTag("node_version", process.version);
+
+  posthog = new PostHog(POSTHOG_KEY, { host: POSTHOG_HOST, flushAt: 5, flushInterval: 30000 });
+}
+
+export function trackEvent(name: string, properties?: Record<string, any>): void {
+  if (!enabled || !posthog || !anonymousId) return;
+  posthog.capture({
+    distinctId: anonymousId,
+    event: name,
+    properties: {
+      version,
+      os: process.platform,
+      node_version: process.version,
+      ...properties,
+    },
+  });
+}
+
+export function captureException(error: Error, context?: Record<string, string>): void {
+  if (!enabled) return;
+  if (context) Sentry.setContext("extra", context);
+  Sentry.captureException(error);
+}
+
+export async function shutdownTelemetry(): Promise<void> {
+  if (!enabled) return;
+  await Promise.all([
+    Sentry.close(2000),
+    posthog?.shutdown(),
+  ]);
+}
