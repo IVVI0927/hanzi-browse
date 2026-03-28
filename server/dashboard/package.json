@@ -7,6 +7,8 @@
     "build": "vite build"
   },
   "dependencies": {
+    "@sentry/browser": "^10.46.0",
+    "posthog-js": "^1.364.1",
     "preact": "^10.19.0"
   },
   "devDependencies": {
