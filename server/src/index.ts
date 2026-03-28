@@ -13,6 +13,11 @@ if (process.argv[2] === 'setup') {
   process.exit(0);
 }
 
+import { initTelemetry, trackEvent, captureException, shutdownTelemetry } from "./telemetry.js";
+
+initTelemetry();
+trackEvent("mcp_start");
+
 /**
  * Hanzi Browse MCP Server
  *
@@ -1094,6 +1099,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           session.error = `Task still running after ${TASK_TIMEOUT_MS / 60000} minutes. Use browser_screenshot to check progress, then browser_message to continue or browser_stop to end.`;
         }
 
+        trackEvent(session.status === "complete" ? "task_completed" : "task_failed", {
+          status: session.status,
+          steps: session.steps.length,
+        });
+
         return {
           content: [{ type: "text", text: JSON.stringify(formatResult(session), null, 2) }],
           isError: session.status === "error",
@@ -1204,6 +1214,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         return { content: [{ type: "text", text: `Unknown tool: ${name}` }], isError: true };
     }
   } catch (error: any) {
+    captureException(error, { tool: name });
     return { content: [{ type: "text", text: `Error: ${error.message}` }], isError: true };
   }
 });
@@ -1250,7 +1261,12 @@ async function main() {
   console.error("[MCP] Server running (browser execution: extension-side)");
 }
 
+process.on("beforeExit", async () => {
+  await shutdownTelemetry();
+});
+
 main().catch((error) => {
+  captureException(error, { context: "fatal_startup" });
   console.error("[MCP] Fatal:", error);
   process.exit(1);
 });
