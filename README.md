@@ -145,25 +145,49 @@ Building a product? [Contact us](mailto:hanzili0217@gmail.com?subject=Partner%20
 
 ## Development
 
-Prerequisites: [Docker](https://docs.docker.com/get-docker/), Node.js 18+.
+**Prerequisites:** [Node.js 18+](https://nodejs.org/), [Docker Desktop](https://docs.docker.com/get-docker/) (must be running).
+
+### First time
 
 ```bash
 git clone https://github.com/hanzili/hanzi-browse
 cd hanzi-browse
+make fresh
+```
+
+This checks prerequisites, creates `.env` from the template, installs dependencies, builds everything, starts Postgres, runs migrations, and starts the dev server. Takes about 90 seconds.
+
+### Every time after
+
+```bash
 make dev
 ```
 
-This starts Postgres, runs migrations, builds the server + dashboard + extension, and starts the dev servers. Edit `.env` for Google OAuth credentials if you want sign-in to work.
+Starts Postgres + migrations + dev server. Dashboard at [localhost:3456/dashboard](http://localhost:3456/dashboard).
+
+### Commands
 
 | Command | What it does |
 |---------|-------------|
-| `make dev` | Start everything |
-| `make build` | Build server + dashboard + extension |
+| `make fresh` | Full first-time setup (prereqs + deps + build + DB + start) |
+| `make dev` | Start everything (DB + migrate + server) |
+| `make build` | Rebuild server + dashboard + extension |
 | `make stop` | Stop Postgres |
-| `make clean` | Stop + delete database |
+| `make clean` | Stop + delete database volume |
+| `make check-prereqs` | Verify Node 18+ and Docker are available |
 | `make help` | Show all commands |
 
-Load the extension: open `chrome://extensions`, enable Developer Mode, click "Load unpacked", select the `dist/` folder.
+### Configuration
+
+The defaults in `.env.example` are enough to run the server. Optional services:
+
+- **Google OAuth** (dashboard sign-in) -- add `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` to `.env`
+- **Stripe** (credit purchases) -- add test keys to `.env`
+- **Vertex AI** (managed task execution) -- see `.env.example` for setup steps
+
+### Load the extension
+
+Open `chrome://extensions`, enable Developer Mode, click "Load unpacked", select the `dist/` folder.
 
 ## Community
 
