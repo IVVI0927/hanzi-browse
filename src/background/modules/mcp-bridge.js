@@ -12,6 +12,11 @@
 
 
 import * as toolHandlerModule from '../tool-handlers/index.js';
+import {
+  getRelaySocket, setRelaySocket,
+  isRelayConnected,
+  dispatchRelayResponse, dispatchProxyResponse, failAllPending,
+} from './relay-client.js';
 
 const NATIVE_HOST_NAME = 'com.hanzi_browse.oauth_host';
 const WS_RELAY_URL_LOCAL = 'ws://localhost:7862';
@@ -61,8 +66,6 @@ export async function setManagedSession(sessionToken, browserSessionId, apiUrl) 
 
   // Don't capture the active tab at pairing time — it's likely the dashboard page.
   // Instead, a dedicated tab will be created lazily on first tool execution (in the execute_tool handler).
-  // This prevents tasks from navigating the developer's dashboard away.
-  let capturedTabId = null;
 
   // Store persistently
   const storageData = {
@@ -80,9 +83,10 @@ export async function setManagedSession(sessionToken, browserSessionId, apiUrl) 
   await chrome.storage.local.set(storageData);
 
   // Reconnect to relay with the new credentials
-  if (relaySocket) {
-    relaySocket.close();
-    relaySocket = null; // Clear reference so connectToRelay doesn't skip
+  const sock = getRelaySocket();
+  if (sock) {
+    sock.close();
+    setRelaySocket(null); // Clear reference so connectToRelay doesn't skip
   }
   connectToRelay();
 }
@@ -100,9 +104,10 @@ export function clearManagedSession() {
   ]);
   managedSessionTabs.clear();
   // Close the managed relay connection and reconnect to local
-  if (relaySocket) {
-    relaySocket.close();
-    relaySocket = null;
+  const sock2 = getRelaySocket();
+  if (sock2) {
+    sock2.close();
+    setRelaySocket(null);
   }
   connectToRelay();
 }
@@ -126,8 +131,7 @@ import { importCLICredentials } from './oauth-manager.js';
 import { importCodexCredentials } from './codex-oauth-manager.js';
 import { loadConfig } from './api.js';
 
-// WebSocket connection to relay server
-let relaySocket = null;
+// WebSocket reconnect timer (socket itself lives in relay-client.js)
 let wsReconnectTimer = null;
 
 // Active MCP sessions
@@ -143,16 +147,6 @@ let getInfoRequestCounter = 0;
 // Map<requestId, { resolve: Function, timeout: NodeJS.Timeout }>
 const pendingEscalateRequests = new Map();
 let escalateRequestCounter = 0;
-
-// Pending relay requests (for direct relay responses like read_credentials)
-// Map<requestId, { resolve, reject, timeout, responseType }>
-const pendingRelayRequests = new Map();
-let relayRequestCounter = 0;
-
-// Pending API proxy streams (relay proxies API calls with impersonation headers)
-// Map<requestId, { onChunk, resolve, reject, timeout }>
-const pendingApiProxies = new Map();
-let apiProxyCounter = 0;
 
 // Callbacks for MCP events
 let onStartTask = null;
@@ -203,7 +197,7 @@ export function connectToRelay() {
   }
 
   // Don't reconnect if already connected
-  if (relaySocket && relaySocket.readyState === WebSocket.OPEN) {
+  if (isRelayConnected()) {
     return;
   }
 
@@ -221,18 +215,18 @@ export function connectToRelay() {
 }
 
 function _doConnect() {
-  if (relaySocket && relaySocket.readyState === WebSocket.OPEN) return;
+  if (isRelayConnected()) return;
 
   try {
     // Use remote relay for managed mode, local relay for BYOM
     const relayUrl = (managedSessionToken && managedRelayUrl) ? managedRelayUrl : WS_RELAY_URL_LOCAL;
     console.log('[MCP Bridge] Connecting to WebSocket relay:', relayUrl);
     const ws = new WebSocket(relayUrl);
-    relaySocket = ws;
+    setRelaySocket(ws);
 
     ws.onopen = () => {
       // Guard against stale callbacks after reconnect replaces the socket
-      if (relaySocket !== ws) return;
+      if (getRelaySocket() !== ws) return;
       console.log('[MCP Bridge] WebSocket connected');
 
       // Register with session token (managed) or role (BYOM legacy)
@@ -250,7 +244,7 @@ function _doConnect() {
     };
 
     ws.onmessage = async (event) => {
-      if (relaySocket !== ws) return; // Stale socket guard
+      if (getRelaySocket() !== ws) return; // Stale socket guard
       try {
         const message = JSON.parse(event.data);
 
@@ -286,35 +280,9 @@ function _doConnect() {
           return;
         }
 
-        // Check for pending relay request responses (e.g., credentials_result)
-        if (message.requestId && pendingRelayRequests.has(message.requestId)) {
-          const pending = pendingRelayRequests.get(message.requestId);
-          if (!pending.responseType || pending.responseType === message.type) {
-            clearTimeout(pending.timeout);
-            pendingRelayRequests.delete(message.requestId);
-            pending.resolve(message);
-            return;
-          }
-        }
-
-        // Check for API proxy stream events (relay proxies API calls with impersonation headers)
-        if (message.type === 'proxy_stream_chunk' || message.type === 'proxy_stream_end' || message.type === 'proxy_api_error') {
-          const pending = pendingApiProxies.get(message.requestId);
-          if (pending) {
-            if (message.type === 'proxy_stream_chunk') {
-              if (pending.onChunk) pending.onChunk(message.data);
-            } else if (message.type === 'proxy_stream_end') {
-              clearTimeout(pending.timeout);
-              pendingApiProxies.delete(message.requestId);
-              pending.resolve();
-            } else if (message.type === 'proxy_api_error') {
-              clearTimeout(pending.timeout);
-              pendingApiProxies.delete(message.requestId);
-              pending.reject(new Error(message.error));
-            }
-          }
-          return;
-        }
+        // Dispatch to relay-client pending request/proxy maps
+        if (dispatchRelayResponse(message)) return;
+        if (dispatchProxyResponse(message)) return;
 
         // Route through the same command handler as polling
         // Messages from MCP/CLI come in the same format as inbox commands
@@ -330,23 +298,12 @@ function _doConnect() {
 
     ws.onclose = () => {
       // Only handle if this is still the current socket
-      if (relaySocket !== ws) return;
+      if (getRelaySocket() !== ws) return;
       console.log('[MCP Bridge] WebSocket disconnected');
 
       // Fail any in-flight relay operations so callers don't hang forever
-      for (const [requestId, pending] of pendingRelayRequests) {
-        clearTimeout(pending.timeout);
-        pending.reject(new Error('Relay disconnected before the request completed'));
-        pendingRelayRequests.delete(requestId);
-      }
-
-      for (const [requestId, pending] of pendingApiProxies) {
-        clearTimeout(pending.timeout);
-        pending.reject(new Error('Relay disconnected during API proxy request'));
-        pendingApiProxies.delete(requestId);
-      }
-
-      relaySocket = null;
+      failAllPending();
+      setRelaySocket(null);
 
       // Schedule reconnect
       wsReconnectTimer = setTimeout(() => {
@@ -355,7 +312,7 @@ function _doConnect() {
     };
 
     ws.onerror = (_err) => {
-      if (relaySocket !== ws) return;
+      if (getRelaySocket() !== ws) return;
       console.log('[MCP Bridge] WebSocket error (relay may not be running)');
       // onclose will fire after this, handling fallback
     };
@@ -411,15 +368,16 @@ function normalizeIncomingMessage(message) {
  */
 export function stopManagedTask() {
   managedTaskStopped = true;
-  // Hide overlay on all managed tabs
-  for (const [, tabId] of managedSessionTabs) {
-    try { chrome.tabs.sendMessage(tabId, { type: 'HIDE_AGENT_INDICATORS' }); } catch {}
-  }
-  console.log('[MCP Bridge] Managed task stopped by user');
-}
-
-export function isRelayConnected() {
-  return relaySocket && relaySocket.readyState === WebSocket.OPEN;
+  // Clear tab mappings so next task creates fresh tabs
+  managedSessionTabs.clear();
+  chrome.storage.local.remove('managed_session_tabs').catch(() => {});
+  // Hide overlay on all tabs
+  chrome.tabs.query({}).then(tabs => {
+    for (const tab of tabs) {
+      if (tab.id) try { chrome.tabs.sendMessage(tab.id, { type: 'HIDE_AGENT_INDICATORS' }); } catch { /* content script may not be injected */ }
+    }
+  });
+  console.log('[MCP Bridge] Managed task stopped by user, tab mappings cleared');
 }
 
 function getSourceClientId(sessionId) {
@@ -459,6 +417,7 @@ function ensureBridgeSession(sessionId, data = {}) {
 /**
  * Handle an MCP command from the inbox
  */
+// eslint-disable-next-line complexity, sonarjs/cognitive-complexity
 async function handleMcpCommand(command) {
   console.log('[MCP Bridge] Received command:', command.type, command.sessionId);
 
@@ -645,12 +604,13 @@ async function handleMcpCommand(command) {
         type: 'TASK_COMPLETE',
         result: command.answer || 'Done',
       }).catch(() => {});
-      // Hide overlay on all managed session tabs
+      // Hide overlay on ALL tabs
       try {
-        for (const [, tabId] of managedSessionTabs) {
-          try { await chrome.tabs.sendMessage(tabId, { type: 'HIDE_AGENT_INDICATORS' }); } catch {}
+        const allTabs = await chrome.tabs.query({});
+        for (const tab of allTabs) {
+          if (tab.id) try { await chrome.tabs.sendMessage(tab.id, { type: 'HIDE_AGENT_INDICATORS' }); } catch { /* content script not injected */ }
         }
-      } catch {}
+      } catch { /* tabs query failed */ }
       break;
 
     case 'task_error':
@@ -658,12 +618,13 @@ async function handleMcpCommand(command) {
         type: 'TASK_ERROR',
         error: command.error || 'Task failed',
       }).catch(() => {});
-      // Hide overlay on all managed session tabs
+      // Hide overlay on ALL tabs
       try {
-        for (const [, tabId] of managedSessionTabs) {
-          try { await chrome.tabs.sendMessage(tabId, { type: 'HIDE_AGENT_INDICATORS' }); } catch {}
+        const allTabs2 = await chrome.tabs.query({});
+        for (const tab of allTabs2) {
+          if (tab.id) try { await chrome.tabs.sendMessage(tab.id, { type: 'HIDE_AGENT_INDICATORS' }); } catch { /* content script not injected */ }
         }
-      } catch {}
+      } catch { /* tabs query failed */ }
       break;
 
     case 'execute_tool': {
@@ -677,7 +638,7 @@ async function handleMcpCommand(command) {
         break;
       }
 
-      // If user clicked Stop, reject all tool executions
+      // If user clicked Stop, reject ALL tool executions until a new task starts
       if (managedTaskStopped) {
         sendToMcpRelay({
           type: 'tool_result',
@@ -741,7 +702,7 @@ async function handleMcpCommand(command) {
             // Always create in the last focused window to avoid opening a new window
             const [focusedWin] = await chrome.windows.getAll({ windowTypes: ['normal'] }).then(wins => wins.filter(w => w.focused));
             const windowId = focusedWin?.id || (await chrome.windows.getLastFocused())?.id;
-            const newTab = await chrome.tabs.create({ url: 'about:blank', active: false, windowId });
+            const newTab = await chrome.tabs.create({ url: 'about:blank', active: true, windowId });
             tabId = newTab.id;
             if (tabId && execSessionId) {
               managedSessionTabs.set(execSessionId, tabId);
@@ -763,7 +724,7 @@ async function handleMcpCommand(command) {
         // Show "Powered by Hanzi Browse" overlay on the session tab
         try {
           await chrome.tabs.sendMessage(tabId, { type: 'SHOW_AGENT_INDICATORS', taskId: command.taskId || requestId });
-        } catch {} // content script may not be ready yet
+        } catch { /* content script may not be ready yet */ }
 
         // Inject the session-owned tabId — tools read it from input directly
         const toolInput = { ...input, tabId };
@@ -1062,12 +1023,13 @@ export function getMcpSession(sessionId) {
  * MCP task transport requires relay connectivity.
  */
 export function sendToMcpRelay(message) {
-  if (!relaySocket || relaySocket.readyState !== WebSocket.OPEN) {
+  const sock = getRelaySocket();
+  if (!sock || sock.readyState !== WebSocket.OPEN) {
     return false;
   }
 
   const wsMessage = normalizeOutgoingMessage(message);
-  relaySocket.send(JSON.stringify(wsMessage));
+  sock.send(JSON.stringify(wsMessage));
   return true;
 }
 
@@ -1110,65 +1072,4 @@ export function getMcpSessions() {
   return Array.from(mcpSessions.keys());
 }
 
-/**
- * Send a request directly to the relay and wait for a response.
- * Used for relay-handled operations like credential reading.
- *
- * @param {Object} message - Message to send to the relay
- * @param {string} responseType - Expected response message type
- * @param {number} timeoutMs - Timeout in milliseconds
- * @returns {Promise<Object>} Response message from the relay
- */
-export function relayRequest(message, responseType, timeoutMs = 10000) {
-  return new Promise((resolve, reject) => {
-    if (!relaySocket || relaySocket.readyState !== WebSocket.OPEN) {
-      reject(new Error('Relay not connected'));
-      return;
-    }
-
-    const requestId = message.requestId || `relay_${Date.now()}_${++relayRequestCounter}`;
-    const timeout = setTimeout(() => {
-      pendingRelayRequests.delete(requestId);
-      reject(new Error('Relay request timed out'));
-    }, timeoutMs);
-
-    pendingRelayRequests.set(requestId, { resolve, reject, timeout, responseType });
-    relaySocket.send(JSON.stringify({ ...message, requestId }));
-  });
-}
-
-/**
- * Proxy an API call through the relay server.
- * The relay adds Claude Code impersonation headers (user-agent, x-app)
- * that browsers can't set due to CORS restrictions.
- *
- * @param {string} url - API endpoint URL
- * @param {string} body - Serialized JSON request body
- * @param {Function} onChunk - Called with each SSE event object
- * @param {number} timeoutMs - Timeout in milliseconds
- * @returns {Promise<void>} Resolves when stream completes
- */
-export function proxyApiCall(url, body, onChunk, timeoutMs = 150000) {
-  return new Promise((resolve, reject) => {
-    if (!relaySocket || relaySocket.readyState !== WebSocket.OPEN) {
-      reject(new Error('Relay not connected'));
-      return;
-    }
-
-    const requestId = `proxy_${Date.now()}_${++apiProxyCounter}`;
-
-    const timeout = setTimeout(() => {
-      pendingApiProxies.delete(requestId);
-      reject(new Error('API proxy request timed out'));
-    }, timeoutMs);
-
-    pendingApiProxies.set(requestId, { onChunk, resolve, reject, timeout });
-
-    relaySocket.send(JSON.stringify({
-      type: 'proxy_api_call',
-      requestId,
-      url,
-      body,
-    }));
-  });
-}
+// relayRequest and proxyApiCall moved to relay-client.js

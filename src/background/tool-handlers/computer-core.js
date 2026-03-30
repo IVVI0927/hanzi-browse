@@ -328,6 +328,7 @@ async function handleScreenshot(tabId) {
  * @param {string} [input.modifiers] - Modifier keys for clicks
  * @returns {Promise<Object>} Tool result
  */
+// eslint-disable-next-line complexity, sonarjs/cognitive-complexity, max-lines-per-function
 export async function handleComputer(input) {
   try {
     const toolInput = input || {};
@@ -559,6 +560,7 @@ export async function handleComputer(input) {
                 await cdpHelper.pressKeyChord(tabId, key);
               } else {
                 const keyDef = cdpHelper.getKeyCode(key);
+                // eslint-disable-next-line max-depth
                 if (keyDef) {
                   await cdpHelper.pressKey(tabId, keyDef);
                 } else {

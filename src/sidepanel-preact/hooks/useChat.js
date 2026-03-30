@@ -13,7 +13,7 @@ export function useChat() {
 
   // Streaming state
   const streamingTextRef = useRef('');
-  const [streamingMessageId, setStreamingMessageId] = useState(null);
+  const [_streamingMessageId, setStreamingMessageId] = useState(null);
 
   // Listen for messages from service worker
   useEffect(() => {

@@ -18,7 +18,7 @@ try {
     projectId: url.pathname.replace('/', ''),
     ingestUrl: `https://${url.hostname}/api${url.pathname}/envelope/`,
   };
-} catch {}
+} catch { /* DSN parse failure — telemetry disabled */ }
 
 function createEnvelope(event) {
   const header = JSON.stringify({
@@ -83,7 +83,7 @@ export async function initErrorReporting() {
       telemetryEnabled = false;
       return;
     }
-  } catch {}
+  } catch { /* storage read failure — proceed with default */ }
 
   self.addEventListener('error', (event) => {
     captureError(event.error || new Error(event.message), { source: 'unhandled' });

@@ -300,6 +300,20 @@ class CDPHelper {
             }
           }
 
+          // Auto-dismiss beforeunload dialogs ("Leave site?")
+          // These block the agent and it can't see or click them
+          if (method === "Page.javascriptDialogOpening") {
+            const { type } = params;
+            if (type === "beforeunload") {
+              try {
+                chrome.debugger.sendCommand({ tabId }, "Page.handleJavaScriptDialog", { accept: false }); // false = Cancel/Stay
+                console.log('[CDP] Auto-dismissed beforeunload dialog (clicked Cancel)');
+              } catch (e) {
+                console.warn('[CDP] Failed to dismiss dialog:', e.message);
+              }
+            }
+          }
+
           // Network loading failed (lines 5000-5010)
           if (method === "Network.loadingFailed") {
             const requestId = params.requestId;
@@ -352,6 +366,13 @@ class CDPHelper {
     });
 
     this.registerDebuggerEventHandlers();
+
+    // Enable Page domain to catch beforeunload dialogs
+    try {
+      await this.sendCommand(tabId, "Page.enable");
+    } catch {
+      // Silently ignore
+    }
 
     if (consoleWasEnabled) {
       try {
@@ -469,6 +490,7 @@ class CDPHelper {
   // CLICK (lines 5150-5211)
   // ============================================================================
 
+  // eslint-disable-next-line max-params
   async click(tabId, x, y, button = "left", clickCount = 1, modifiers = 0, antiBot = false, startX = null, startY = null) {
     await indicatorManager.hideIndicatorForToolUse(tabId);
 
@@ -641,7 +663,8 @@ class CDPHelper {
         await this.insertText(tabId, char);
       }
 
-      // Human-like delays between characters
+      // Delay between characters — always add a minimum delay for rich text editors (Draft.js etc.)
+      // Without this, fast typing garbles text in contentEditable editors
       if (antiBot) {
         let delay = randomDelay(
           ANTI_BOT_CONFIG.typing.baseDelayMs,
@@ -661,6 +684,9 @@ class CDPHelper {
         }
 
         await new Promise(resolve => setTimeout(resolve, delay));
+      } else {
+        // 50ms delay without antiBot — Draft.js and rich editors need this
+        await new Promise(resolve => setTimeout(resolve, 50));
       }
     }
   }
@@ -1108,9 +1134,11 @@ class CDPHelper {
     }
   }
 
+  // eslint-disable-next-line max-params
   async processScreenshotInContentScript(tabId, base64Data, viewportWidth, viewportHeight, devicePixelRatio, resizeParams) {
     const scriptResult = await chrome.scripting.executeScript({
       target: { tabId },
+      // eslint-disable-next-line max-params
       func: (base64, vWidth, vHeight, dpr, params, maxBase64Chars, initialQuality, qualityStep, minQuality) => {
         const dataUrl = `data:image/jpeg;base64,${base64}`;
         return new Promise((resolve, reject) => {

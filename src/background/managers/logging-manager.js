@@ -154,6 +154,7 @@ function filterDebugLog(debugLog) {
  * @param {Array<Object>} debugLog - Debug log entries
  * @returns {Array<Object>} Array of turns with tools and ai_response
  */
+// eslint-disable-next-line sonarjs/cognitive-complexity
 function buildTurnsFromDebugLog(debugLog) {
   const turns = [];
   let currentTurn = null;
@@ -293,6 +294,7 @@ export async function saveTaskLogs(taskData, screenshots = [], options = {}) {
  * @param {Array<Object>} messages - Raw message history with roles and content blocks
  * @returns {Array<Object>} Clean turn-based format with tools and AI responses
  */
+// eslint-disable-next-line sonarjs/cognitive-complexity
 export function buildCleanTurns(messages) {
   const turns = [];
   let currentTurn = null;

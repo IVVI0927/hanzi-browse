@@ -94,6 +94,7 @@ function handleReadPage(payload, sendResponse) {
 /**
  * Handle form_input tool (async for custom dropdown polling)
  */
+// eslint-disable-next-line complexity, sonarjs/cognitive-complexity, max-lines-per-function
 async function handleFormInput(payload, sendResponse) {
   try {
     const { ref, value } = payload;

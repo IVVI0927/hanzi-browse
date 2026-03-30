@@ -52,6 +52,7 @@ function getRole(element) {
 /**
  * Get element's accessible name (label)
  */
+// eslint-disable-next-line sonarjs/cognitive-complexity
 function getName(element) {
   var tag = element.tagName.toLowerCase();
 
@@ -234,7 +235,7 @@ window.__generateAccessibilityTree = function(filter, maxDepth, maxChars, refId)
     /**
      * Recursively build tree
      */
-    // eslint-disable-next-line no-inner-declarations
+    // eslint-disable-next-line no-inner-declarations, sonarjs/cognitive-complexity
     function buildTree(element, depth, options) {
       if (depth > treeDepth) return;
       if (!element || !element.tagName) return;
@@ -347,7 +348,7 @@ window.__generateAccessibilityTree = function(filter, maxDepth, maxChars, refId)
     /**
      * Build tree for elements inside an iframe
      */
-    // eslint-disable-next-line no-inner-declarations
+    // eslint-disable-next-line no-inner-declarations, sonarjs/cognitive-complexity
     function buildTreeInIframe(element, depth, options, doc) {
       if (depth > treeDepth) return;
       if (!element || !element.tagName) return;

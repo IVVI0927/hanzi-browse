@@ -26,9 +26,6 @@
     "test:auto": "node test-automation.js",
     "test:compare": "node compare-extensions.js"
   },
-  "dependencies": {
-    "preact": "^10.19.3"
-  },
   "devDependencies": {
     "@babel/core": "^7.28.6",
     "@preact/preset-vite": "^2.8.2",
@@ -38,8 +35,9 @@
     "knip": "^5.0.0",
     "madge": "^6.1.0",
     "prettier": "^3.2.5",
-    "vite": "^5.0.12",
-    "@tavily/core": "^0.6.0",
-    "@anthropic-ai/sdk": "^0.39.0"
+    "vite": "^5.0.12"
+  },
+  "dependencies": {
+    "preact": "^10.29.0"
   }
 }

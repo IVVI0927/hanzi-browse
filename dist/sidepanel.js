@@ -1,4 +1,4 @@
-import { d, y, q, C as CODEX_MODELS, P as PROVIDERS, A, u, k, G } from "./providers.js";
+import { d, y, q, C as CODEX_MODELS, P as PROVIDERS, A, u, k, J } from "./providers.js";
 function serializeModelConfig(model) {
   if (!model) return null;
   return {
@@ -287,7 +287,7 @@ function useChat() {
   const [pendingStep, setPendingStep] = d(null);
   const currentStepsRef = A([]);
   const streamingTextRef = A("");
-  const [streamingMessageId, setStreamingMessageId] = d(null);
+  const [_streamingMessageId, setStreamingMessageId] = d(null);
   y(() => {
     const listener = (message) => {
       switch (message.type) {
@@ -570,43 +570,40 @@ function Header({
 function formatMarkdown(text) {
   if (!text) return "";
   const lines = text.split("\n");
-  let result = [];
-  let inList = false;
-  let listType = null;
+  const result = [];
+  const state = { inList: false, listType: null };
   for (const line of lines) {
     const ulMatch = line.match(/^[-*]\s+(.+)$/);
     const olMatch = line.match(/^(\d+)\.\s+(.+)$/);
     if (ulMatch) {
-      if (!inList || listType !== "ul") {
-        if (inList) result.push(listType === "ol" ? "</ol>" : "</ul>");
-        result.push("<ul>");
-        inList = true;
-        listType = "ul";
-      }
+      openList(result, state, "ul");
       result.push(`<li>${formatInline(ulMatch[1])}</li>`);
     } else if (olMatch) {
-      if (!inList || listType !== "ol") {
-        if (inList) result.push(listType === "ol" ? "</ol>" : "</ul>");
-        result.push("<ol>");
-        inList = true;
-        listType = "ol";
-      }
+      openList(result, state, "ol");
       result.push(`<li>${formatInline(olMatch[2])}</li>`);
     } else {
-      if (inList) {
-        result.push(listType === "ol" ? "</ol>" : "</ul>");
-        inList = false;
-        listType = null;
-      }
-      if (line.trim() === "") {
-        result.push("<br>");
-      } else {
-        result.push(`<p>${formatInline(line)}</p>`);
-      }
+      closeList(result, state);
+      result.push(line.trim() === "" ? "<br>" : `<p>${formatInline(line)}</p>`);
     }
   }
-  if (inList) result.push(listType === "ol" ? "</ol>" : "</ul>");
+  closeListTag(result, state);
   return result.join("");
+}
+function closeListTag(result, state) {
+  if (state.inList) result.push(state.listType === "ol" ? "</ol>" : "</ul>");
+}
+function openList(result, state, type) {
+  if (state.inList && state.listType === type) return;
+  closeListTag(result, state);
+  result.push(type === "ol" ? "<ol>" : "<ul>");
+  state.inList = true;
+  state.listType = type;
+}
+function closeList(result, state) {
+  if (!state.inList) return;
+  closeListTag(result, state);
+  state.inList = false;
+  state.listType = null;
 }
 function formatInline(text) {
   return escapeHtml(text).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/\*(.+?)\*/g, "<em>$1</em>").replace(/`(.+?)`/g, "<code>$1</code>");
@@ -1573,5 +1570,5 @@ function App() {
     )
   ] });
 }
-G(/* @__PURE__ */ u(App, {}), document.getElementById("app"));
+J(/* @__PURE__ */ u(App, {}), document.getElementById("app"));
 //# sourceMappingURL=sidepanel.js.map

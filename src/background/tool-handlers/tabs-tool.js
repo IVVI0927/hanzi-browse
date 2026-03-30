@@ -30,6 +30,7 @@ function isRestrictedUrl(url) {
  * @param {TabsToolDeps} deps - Dependency injection object
  * @returns {Promise<string>} JSON string with available tabs, group ID, and note
  */
+// eslint-disable-next-line sonarjs/cognitive-complexity
 export async function handleTabsContext(toolInput, deps) {
   const { sessionTabGroupId, agentOpenedTabs, isAnySessionActive, mcpSession } = deps;
   let tabs = [];

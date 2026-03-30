@@ -128,16 +128,15 @@ export class OpenAIProvider extends BaseProvider {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
 
-    let result = {
-      content: [],
+    const state = {
+      currentText: '',
+      toolCalls: {},
+      finishReason: null,
+      reasoning: null,
+      reasoningDetails: null,
       usage: null,
     };
 
-    let currentText = '';
-    let toolCalls = {}; // Track by index
-    let finishReason = null;
-    let reasoning = null; // For Kimi K2.5
-    let reasoningDetails = null; // For Kimi K2.5
     let buffer = '';
 
     // eslint-disable-next-line no-constant-condition
@@ -156,76 +155,93 @@ export class OpenAIProvider extends BaseProvider {
 
         try {
           const chunk = JSON.parse(data);
-          const choice = chunk.choices?.[0];
-          if (!choice) continue;
-
-          const delta = choice.delta;
-
-          // Handle text content
-          if (delta.content) {
-            currentText += delta.content;
-            if (onTextChunk) onTextChunk(delta.content);
-          }
-
-          // Handle tool calls
-          if (delta.tool_calls) {
-            for (const toolCall of delta.tool_calls) {
-              const index = toolCall.index;
-
-              if (!toolCalls[index]) {
-                toolCalls[index] = {
-                  id: toolCall.id || `call_${Date.now()}_${index}`,
-                  name: toolCall.function?.name || '',
-                  arguments: '',
-                };
-              }
-
-              if (toolCall.function?.name) {
-                toolCalls[index].name = toolCall.function.name;
-              }
-              if (toolCall.function?.arguments) {
-                toolCalls[index].arguments += toolCall.function.arguments;
-              }
-            }
-          }
-
-          // Handle finish reason
-          if (choice.finish_reason) {
-            finishReason = choice.finish_reason;
-          }
-
-          // Handle usage (may be in final chunk)
-          if (chunk.usage) {
-            result.usage = chunk.usage;
-          }
-
-          // Handle reasoning for Kimi K2.5 (may be in delta or full message)
-          if (delta.reasoning && !reasoning) {
-            reasoning = delta.reasoning;
-          }
-          if (delta.reasoning_details && !reasoningDetails) {
-            reasoningDetails = delta.reasoning_details;
-          }
-          // Also check the full message (some providers send it there)
-          if (choice.message?.reasoning && !reasoning) {
-            reasoning = choice.message.reasoning;
-          }
-          if (choice.message?.reasoning_details && !reasoningDetails) {
-            reasoningDetails = choice.message.reasoning_details;
-          }
+          this._processStreamChunk(chunk, state, onTextChunk);
         } catch (e) {
           // Ignore JSON parse errors for malformed chunks
         }
       }
     }
 
+    return this._buildStreamResult(state);
+  }
+
+  _processStreamChunk(chunk, state, onTextChunk) {
+    const choice = chunk.choices?.[0];
+    if (!choice) return;
+
+    const delta = choice.delta;
+
+    // Handle text content
+    if (delta.content) {
+      state.currentText += delta.content;
+      if (onTextChunk) onTextChunk(delta.content);
+    }
+
+    // Handle tool calls
+    if (delta.tool_calls) {
+      this._accumulateToolCalls(delta.tool_calls, state.toolCalls);
+    }
+
+    // Handle finish reason
+    if (choice.finish_reason) {
+      state.finishReason = choice.finish_reason;
+    }
+
+    // Handle usage (may be in final chunk)
+    if (chunk.usage) {
+      state.usage = chunk.usage;
+    }
+
+    // Handle reasoning for Kimi K2.5 (may be in delta or full message)
+    if (delta.reasoning && !state.reasoning) {
+      state.reasoning = delta.reasoning;
+    }
+    if (delta.reasoning_details && !state.reasoningDetails) {
+      state.reasoningDetails = delta.reasoning_details;
+    }
+    // Also check the full message (some providers send it there)
+    if (choice.message?.reasoning && !state.reasoning) {
+      state.reasoning = choice.message.reasoning;
+    }
+    if (choice.message?.reasoning_details && !state.reasoningDetails) {
+      state.reasoningDetails = choice.message.reasoning_details;
+    }
+  }
+
+  _accumulateToolCalls(deltaToolCalls, toolCalls) {
+    for (const toolCall of deltaToolCalls) {
+      const index = toolCall.index;
+
+      if (!toolCalls[index]) {
+        toolCalls[index] = {
+          id: toolCall.id || `call_${Date.now()}_${index}`,
+          name: toolCall.function?.name || '',
+          arguments: '',
+        };
+      }
+
+      if (toolCall.function?.name) {
+        toolCalls[index].name = toolCall.function.name;
+      }
+      if (toolCall.function?.arguments) {
+        toolCalls[index].arguments += toolCall.function.arguments;
+      }
+    }
+  }
+
+  _buildStreamResult(state) {
+    const result = {
+      content: [],
+      usage: state.usage,
+    };
+
     // Build content array
-    if (currentText) {
-      result.content.push({ type: 'text', text: currentText });
+    if (state.currentText) {
+      result.content.push({ type: 'text', text: state.currentText });
     }
 
     // Add tool calls
-    for (const toolCall of Object.values(toolCalls)) {
+    for (const toolCall of Object.values(state.toolCalls)) {
       let parsedArgs = {};
       try {
         parsedArgs = JSON.parse(toolCall.arguments);
@@ -241,11 +257,11 @@ export class OpenAIProvider extends BaseProvider {
       };
 
       // Preserve reasoning for Kimi K2.5
-      if (reasoning) {
-        toolUseBlock.reasoning = reasoning;
+      if (state.reasoning) {
+        toolUseBlock.reasoning = state.reasoning;
       }
-      if (reasoningDetails) {
-        toolUseBlock.reasoning_details = reasoningDetails;
+      if (state.reasoningDetails) {
+        toolUseBlock.reasoning_details = state.reasoningDetails;
       }
 
       result.content.push(toolUseBlock);
@@ -258,19 +274,19 @@ export class OpenAIProvider extends BaseProvider {
 
     // Map finish_reason to stop_reason
     let stopReason = 'end_turn';
-    if (finishReason === 'length') {
+    if (state.finishReason === 'length') {
       stopReason = 'max_tokens';
-    } else if (finishReason === 'tool_calls') {
+    } else if (state.finishReason === 'tool_calls') {
       stopReason = 'tool_use';
     }
     result.stop_reason = stopReason;
 
     // Store reasoning fields at the top level for easier access (Kimi K2.5)
-    if (reasoning) {
-      result.reasoning = reasoning;
+    if (state.reasoning) {
+      result.reasoning = state.reasoning;
     }
-    if (reasoningDetails) {
-      result.reasoning_details = reasoningDetails;
+    if (state.reasoningDetails) {
+      result.reasoning_details = state.reasoningDetails;
     }
 
     return result;
@@ -315,122 +331,133 @@ export class OpenAIProvider extends BaseProvider {
       }
 
       // Array content - need to convert blocks
-      if (Array.isArray(msg.content)) {
-        if (msg.role === 'assistant') {
-          // Assistant message with content blocks
-          let textContent = '';
-          const toolCalls = [];
-          let reasoning = null;
-          let reasoningDetails = null;
+      if (!Array.isArray(msg.content)) continue;
 
-          for (const block of msg.content) {
-            if (block.type === 'text') {
-              textContent += block.text;
-            } else if (block.type === 'tool_use') {
-              toolCalls.push({
-                id: block.id,
-                type: 'function',
-                function: {
-                  name: block.name,
-                  arguments: JSON.stringify(block.input),
-                },
-              });
-
-              // Preserve reasoning fields for Kimi K2.5
-              if (block.reasoning && !reasoning) {
-                reasoning = block.reasoning;
-              }
-              if (block.reasoning_details && !reasoningDetails) {
-                reasoningDetails = block.reasoning_details;
-              }
-            }
-          }
-
-          const assistantMsg = {
-            role: 'assistant',
-            content: textContent || null,
-          };
-          if (toolCalls.length > 0) {
-            assistantMsg.tool_calls = toolCalls;
-          }
-
-          // Include reasoning fields for Kimi K2.5 if present
-          // Kimi RETURNS "reasoning" but EXPECTS "reasoning_content" when sending back
-          if (reasoning) {
-            assistantMsg.reasoning_content = reasoning;
-          }
-          if (reasoningDetails) {
-            assistantMsg.reasoning_details = reasoningDetails;
-          }
-
-          openaiMessages.push(assistantMsg);
-
-        } else if (msg.role === 'user') {
-          // User message with tool results, text, and images
-          // Collect image blocks to attach to a user message after tool results
-          const pendingImages = [];
-
-          for (const block of msg.content) {
-            if (block.type === 'tool_result') {
-              // OpenAI expects role: 'tool' with tool_call_id
-              let content = '';
-              if (typeof block.content === 'string') {
-                content = block.content;
-              } else if (Array.isArray(block.content)) {
-                // Extract text and collect images from tool result content
-                const textParts = [];
-                for (const c of block.content) {
-                  if (c.type === 'text') {
-                    textParts.push(c.text);
-                  } else if (c.type === 'image' && c.source?.data) {
-                    // Queue image to send as a user message (OpenAI tool messages can't contain images)
-                    pendingImages.push({
-                      type: 'image_url',
-                      image_url: {
-                        url: `data:${c.source.media_type || 'image/jpeg'};base64,${c.source.data}`,
-                      },
-                    });
-                  }
-                }
-                content = textParts.join('\n');
-              }
-
-              openaiMessages.push({
-                role: 'tool',
-                tool_call_id: block.tool_use_id,
-                content: content,
-              });
-            } else if (block.type === 'text') {
-              // Regular text in user message
-              openaiMessages.push({
-                role: 'user',
-                content: block.text,
-              });
-            } else if (block.type === 'image' && block.source?.data) {
-              // Standalone image block in user message
-              pendingImages.push({
-                type: 'image_url',
-                image_url: {
-                  url: `data:${block.source.media_type || 'image/jpeg'};base64,${block.source.data}`,
-                },
-              });
-            }
-          }
-
-          // Send collected images as a user message with vision content
-          if (pendingImages.length > 0) {
-            openaiMessages.push({
-              role: 'user',
-              content: [
-                { type: 'text', text: 'Screenshot of the current page:' },
-                ...pendingImages,
-              ],
-            });
-          }
-        }
+      if (msg.role === 'assistant') {
+        openaiMessages.push(this._convertAssistantMessage(msg.content));
+      } else if (msg.role === 'user') {
+        this._convertUserMessage(msg.content, openaiMessages);
       }
     }
 
     return openaiMessages;
+  }
+
+  _convertAssistantMessage(contentBlocks) {
+    let textContent = '';
+    const toolCalls = [];
+    let reasoning = null;
+    let reasoningDetails = null;
+
+    for (const block of contentBlocks) {
+      if (block.type === 'text') {
+        textContent += block.text;
+      } else if (block.type === 'tool_use') {
+        toolCalls.push({
+          id: block.id,
+          type: 'function',
+          function: {
+            name: block.name,
+            arguments: JSON.stringify(block.input),
+          },
+        });
+
+        // Preserve reasoning fields for Kimi K2.5
+        if (block.reasoning && !reasoning) {
+          reasoning = block.reasoning;
+        }
+        if (block.reasoning_details && !reasoningDetails) {
+          reasoningDetails = block.reasoning_details;
+        }
+      }
+    }
+
+    const assistantMsg = {
+      role: 'assistant',
+      content: textContent || null,
+    };
+    if (toolCalls.length > 0) {
+      assistantMsg.tool_calls = toolCalls;
+    }
+
+    // Include reasoning fields for Kimi K2.5 if present
+    // Kimi RETURNS "reasoning" but EXPECTS "reasoning_content" when sending back
+    if (reasoning) {
+      assistantMsg.reasoning_content = reasoning;
+    }
+    if (reasoningDetails) {
+      assistantMsg.reasoning_details = reasoningDetails;
+    }
+
+    return assistantMsg;
+  }
+
+  _convertUserMessage(contentBlocks, openaiMessages) {
+    // User message with tool results, text, and images
+    // Collect image blocks to attach to a user message after tool results
+    const pendingImages = [];
+
+    for (const block of contentBlocks) {
+      if (block.type === 'tool_result') {
+        const { content, images } = this._convertToolResultContent(block.content);
+        pendingImages.push(...images);
+
+        openaiMessages.push({
+          role: 'tool',
+          tool_call_id: block.tool_use_id,
+          content: content,
+        });
+      } else if (block.type === 'text') {
+        openaiMessages.push({
+          role: 'user',
+          content: block.text,
+        });
+      } else if (block.type === 'image' && block.source?.data) {
+        pendingImages.push(this._makeImageUrl(block.source));
+      }
+    }
+
+    // Send collected images as a user message with vision content
+    if (pendingImages.length > 0) {
+      openaiMessages.push({
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Screenshot of the current page:' },
+          ...pendingImages,
+        ],
+      });
+    }
+  }
+
+  _convertToolResultContent(blockContent) {
+    if (typeof blockContent === 'string') {
+      return { content: blockContent, images: [] };
+    }
+
+    if (!Array.isArray(blockContent)) {
+      return { content: '', images: [] };
+    }
+
+    // Extract text and collect images from tool result content
+    const textParts = [];
+    const images = [];
+    for (const c of blockContent) {
+      if (c.type === 'text') {
+        textParts.push(c.text);
+      } else if (c.type === 'image' && c.source?.data) {
+        // Queue image to send as a user message (OpenAI tool messages can't contain images)
+        images.push(this._makeImageUrl(c.source));
+      }
+    }
+    return { content: textParts.join('\n'), images };
+  }
+
+  _makeImageUrl(source) {
+    return {
+      type: 'image_url',
+      image_url: {
+        url: `data:${source.media_type || 'image/jpeg'};base64,${source.data}`,
+      },
+    };
   }
 }

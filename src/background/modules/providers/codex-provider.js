@@ -121,127 +121,13 @@ export class CodexProvider extends BaseProvider {
           if (settled) return;
 
           if (message.type === 'stream_chunk') {
-            // Handle Responses API streaming events
-            const event = message.data;
-
-            // response.output_item.added - new item (text or function_call)
-            if (event.type === 'response.output_item.added') {
-              const item = event.item;
-              if (item) {
-                itemsById[item.id] = {
-                  id: item.id,
-                  type: item.type,
-                  call_id: item.call_id,
-                  name: item.name || '',
-                  arguments: item.arguments || '',
-                };
-              }
-
-            // response.output_item.done - finalized item with complete data
-            } else if (event.type === 'response.output_item.done') {
-              const item = event.item;
-              if (item && item.type === 'function_call') {
-                itemsById[item.id] = {
-                  id: item.id,
-                  type: item.type,
-                  call_id: item.call_id,
-                  name: item.name || '',
-                  arguments: item.arguments || '',
-                };
-              }
-
-            // response.output_text.delta - text streaming
-            } else if (event.type === 'response.output_text.delta') {
-              const text = event.delta || '';
-              currentText += text;
-              if (onTextChunk) onTextChunk(text);
-
-            // response.function_call_arguments.delta - argument fragments
-            } else if (event.type === 'response.function_call_arguments.delta') {
-              const itemId = event.item_id;
-              if (itemId && itemsById[itemId]) {
-                itemsById[itemId].arguments += event.delta || '';
-              }
-
-            // response.function_call_arguments.done - complete arguments
-            } else if (event.type === 'response.function_call_arguments.done') {
-              const itemId = event.item_id;
-              if (itemId && itemsById[itemId]) {
-                itemsById[itemId].arguments = event.arguments || '';
-              }
-
-            // response.completed - final response
-            } else if (event.type === 'response.completed') {
-              const response = event.response;
-              if (response?.usage) {
-                result.usage = response.usage;
-              }
-              if (response?.status === 'incomplete') {
-                result.stop_reason = 'max_tokens';
-              }
-              // Extract output items from completed response
-              if (response?.output) {
-                for (const item of response.output) {
-                  if (item.type === 'function_call') {
-                    itemsById[item.id] = {
-                      id: item.id,
-                      type: item.type,
-                      call_id: item.call_id,
-                      name: item.name,
-                      arguments: item.arguments || '',
-                    };
-                  }
-                }
-              }
-            }
-
-            // Handle usage in chunk
-            if (event.usage) {
-              result.usage = event.usage;
-            }
+            currentText = this._handleStreamChunk(message.data, itemsById, currentText, result, onTextChunk);
 
           } else if (message.type === 'stream_end') {
-            // Finalize streaming response
-            if (currentText) {
-              result.content.push({ type: 'text', text: currentText });
-            }
-
-            // Add function calls from tracked items
-            let hasToolCalls = false;
-            for (const item of Object.values(itemsById)) {
-              // Only include function_call items with a valid name
-              if (item.type === 'function_call' && item.name) {
-                let parsedArgs = {};
-                try {
-                  parsedArgs = JSON.parse(item.arguments || '{}');
-                } catch (e) {
-                  parsedArgs = {};
-                }
-
-                result.content.push({
-                  type: 'tool_use',
-                  id: item.call_id || item.id,
-                  name: item.name,
-                  input: parsedArgs,
-                });
-                hasToolCalls = true;
-              }
-            }
-
-            // Set stop reason based on content
-            if (hasToolCalls) {
-              result.stop_reason = 'tool_use';
-            }
-
-            // Ensure content is never empty
-            if (result.content.length === 0) {
-              result.content.push({ type: 'text', text: '' });
-            }
-
+            this._finalizeStreamResult(result, currentText, itemsById);
             settleResolve(result);
 
           } else if (message.type === 'api_response') {
-            // Handle non-streaming response
             if (message.status >= 400) {
               settleReject(new Error(`Codex API error: ${message.status} - ${message.body}`));
               return;
@@ -287,71 +173,13 @@ export class CodexProvider extends BaseProvider {
   }
 
   normalizeResponse(response) {
-    const content = [];
-    let stopReason = 'end_turn';
+    let content;
+    let stopReason;
 
-    // Handle Responses API format (has "output" array)
     if (response.output) {
-      for (const item of response.output) {
-        if (item.type === 'message' && item.role === 'assistant') {
-          // Extract text from message content
-          for (const part of item.content || []) {
-            if (part.type === 'output_text' && part.text) {
-              content.push({ type: 'text', text: part.text });
-            }
-          }
-        } else if (item.type === 'function_call') {
-          // Convert function_call to tool_use
-          let parsedArgs = {};
-          try {
-            parsedArgs = typeof item.arguments === 'string'
-              ? JSON.parse(item.arguments)
-              : item.arguments || {};
-          } catch (e) {
-            parsedArgs = {};
-          }
-
-          content.push({
-            type: 'tool_use',
-            id: item.call_id,
-            name: item.name,
-            input: parsedArgs,
-          });
-          stopReason = 'tool_use';
-        }
-      }
-
-      // Map status to stop_reason
-      if (response.status === 'incomplete') {
-        stopReason = 'max_tokens';
-      }
-
+      ({ content, stopReason } = this._normalizeResponsesApiOutput(response));
     } else if (response.choices?.[0]?.message) {
-      // Fallback: Handle legacy chat completions format
-      const message = response.choices[0].message;
-
-      if (message.content) {
-        content.push({ type: 'text', text: message.content });
-      }
-
-      if (message.tool_calls) {
-        for (const toolCall of message.tool_calls) {
-          content.push({
-            type: 'tool_use',
-            id: toolCall.id,
-            name: toolCall.function.name,
-            input: typeof toolCall.function.arguments === 'string'
-              ? JSON.parse(toolCall.function.arguments)
-              : toolCall.function.arguments,
-          });
-        }
-        stopReason = 'tool_use';
-      }
-
-      const finishReason = response.choices[0].finish_reason;
-      if (finishReason === 'length') {
-        stopReason = 'max_tokens';
-      }
+      ({ content, stopReason } = this._normalizeChatCompletionsOutput(response));
     } else {
       throw new Error(`Unexpected Codex response format: ${JSON.stringify(response).substring(0, 200)}`);
     }
@@ -366,6 +194,166 @@ export class CodexProvider extends BaseProvider {
       stop_reason: stopReason,
       usage: response.usage,
     };
+  }
+
+  _trackItem(itemsById, item) {
+    itemsById[item.id] = {
+      id: item.id,
+      type: item.type,
+      call_id: item.call_id,
+      name: item.name || '',
+      arguments: item.arguments || '',
+    };
+  }
+
+  _handleStreamChunk(event, itemsById, currentText, result, onTextChunk) {
+    if (event.type === 'response.output_item.added') {
+      if (event.item) {
+        this._trackItem(itemsById, event.item);
+      }
+    } else if (event.type === 'response.output_item.done') {
+      if (event.item?.type === 'function_call') {
+        this._trackItem(itemsById, event.item);
+      }
+    } else if (event.type === 'response.output_text.delta') {
+      const text = event.delta || '';
+      currentText += text;
+      if (onTextChunk) onTextChunk(text);
+    } else if (event.type === 'response.function_call_arguments.delta') {
+      if (event.item_id && itemsById[event.item_id]) {
+        itemsById[event.item_id].arguments += event.delta || '';
+      }
+    } else if (event.type === 'response.function_call_arguments.done') {
+      if (event.item_id && itemsById[event.item_id]) {
+        itemsById[event.item_id].arguments = event.arguments || '';
+      }
+    } else if (event.type === 'response.completed') {
+      this._handleResponseCompleted(event.response, itemsById, result);
+    }
+
+    if (event.usage) {
+      result.usage = event.usage;
+    }
+
+    return currentText;
+  }
+
+  _handleResponseCompleted(response, itemsById, result) {
+    if (response?.usage) {
+      result.usage = response.usage;
+    }
+    if (response?.status === 'incomplete') {
+      result.stop_reason = 'max_tokens';
+    }
+    if (response?.output) {
+      for (const item of response.output) {
+        if (item.type === 'function_call') {
+          this._trackItem(itemsById, item);
+        }
+      }
+    }
+  }
+
+  _finalizeStreamResult(result, currentText, itemsById) {
+    if (currentText) {
+      result.content.push({ type: 'text', text: currentText });
+    }
+
+    let hasToolCalls = false;
+    for (const item of Object.values(itemsById)) {
+      if (item.type === 'function_call' && item.name) {
+        let parsedArgs = {};
+        try {
+          parsedArgs = JSON.parse(item.arguments || '{}');
+        } catch (e) {
+          parsedArgs = {};
+        }
+
+        result.content.push({
+          type: 'tool_use',
+          id: item.call_id || item.id,
+          name: item.name,
+          input: parsedArgs,
+        });
+        hasToolCalls = true;
+      }
+    }
+
+    if (hasToolCalls) {
+      result.stop_reason = 'tool_use';
+    }
+
+    if (result.content.length === 0) {
+      result.content.push({ type: 'text', text: '' });
+    }
+  }
+
+  _normalizeResponsesApiOutput(response) {
+    const content = [];
+    let stopReason = 'end_turn';
+
+    for (const item of response.output) {
+      if (item.type === 'message' && item.role === 'assistant') {
+        for (const part of item.content || []) {
+          if (part.type === 'output_text' && part.text) {
+            content.push({ type: 'text', text: part.text });
+          }
+        }
+      } else if (item.type === 'function_call') {
+        let parsedArgs = {};
+        try {
+          parsedArgs = typeof item.arguments === 'string'
+            ? JSON.parse(item.arguments)
+            : item.arguments || {};
+        } catch (e) {
+          parsedArgs = {};
+        }
+
+        content.push({
+          type: 'tool_use',
+          id: item.call_id,
+          name: item.name,
+          input: parsedArgs,
+        });
+        stopReason = 'tool_use';
+      }
+    }
+
+    if (response.status === 'incomplete') {
+      stopReason = 'max_tokens';
+    }
+
+    return { content, stopReason };
+  }
+
+  _normalizeChatCompletionsOutput(response) {
+    const content = [];
+    let stopReason = 'end_turn';
+    const message = response.choices[0].message;
+
+    if (message.content) {
+      content.push({ type: 'text', text: message.content });
+    }
+
+    if (message.tool_calls) {
+      for (const toolCall of message.tool_calls) {
+        content.push({
+          type: 'tool_use',
+          id: toolCall.id,
+          name: toolCall.function.name,
+          input: typeof toolCall.function.arguments === 'string'
+            ? JSON.parse(toolCall.function.arguments)
+            : toolCall.function.arguments,
+        });
+      }
+      stopReason = 'tool_use';
+    }
+
+    if (response.choices[0].finish_reason === 'length') {
+      stopReason = 'max_tokens';
+    }
+
+    return { content, stopReason };
   }
 
   /**

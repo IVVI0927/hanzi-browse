@@ -8,7 +8,7 @@ import { buildSystemPrompt } from './system-prompt.js';
 import { DOMAIN_SKILLS } from './domain-skills.js';
 import { createProvider } from './providers/provider-factory.js';
 import { getAccessToken, refreshAccessToken } from './oauth-manager.js';
-import { proxyApiCall, isRelayConnected } from './mcp-bridge.js';
+import { proxyApiCall, isRelayConnected } from './relay-client.js';
 
 // Configuration (loaded from storage)
 let config = {
@@ -262,20 +262,19 @@ function buildEffectiveConfig(overrides = {}) {
  * Routes through native host to use keychain credentials (same as streaming API).
  *
  * Supports two call signatures:
- * 1. callLLMSimple(prompt, maxTokens) - simple string prompt
- * 2. callLLMSimple({ messages, maxTokens, modelTier }) - full messages array with options
+ * 1. callLLMSimple(prompt) - simple string prompt
+ * 2. callLLMSimple({ messages, modelTier, system, configOverride }) - full messages array with options
  *
  * modelTier: "fast" (Haiku), "smart" (Sonnet), "powerful" (Opus)
  * If modelTier not specified, uses user's configured default model.
  *
  * Returns the full API response when using messages array, or just text when using string prompt.
  */
-export async function callLLMSimple(promptOrOptions, maxTokensArg = 800) {
+export async function callLLMSimple(promptOrOptions) {
   await loadConfig();
 
   // Support both call signatures
   let messages;
-  let maxTokens;
   let modelTier;
   let returnFullResponse = false;
   let configOverride;
@@ -285,7 +284,6 @@ export async function callLLMSimple(promptOrOptions, maxTokensArg = 800) {
   if (typeof promptOrOptions === 'object' && promptOrOptions.messages) {
     // New signature: { messages, maxTokens, modelTier, system }
     messages = promptOrOptions.messages;
-    maxTokens = promptOrOptions.maxTokens || 800;
     modelTier = promptOrOptions.modelTier;
     system = promptOrOptions.system;
     configOverride = promptOrOptions.configOverride;
@@ -293,7 +291,6 @@ export async function callLLMSimple(promptOrOptions, maxTokensArg = 800) {
   } else {
     // Legacy signature: (prompt, maxTokens)
     messages = [{ role: 'user', content: promptOrOptions }];
-    maxTokens = maxTokensArg;
   }
 
   let effectiveConfig = buildEffectiveConfig(configOverride || {});
@@ -895,6 +892,7 @@ export async function callLLMSimpleViaCodex(messages, _maxTokens = 2000, modelTi
     let accumulatedText = '';
     let usage = null;
 
+    // eslint-disable-next-line sonarjs/cognitive-complexity
     const messageListener = (message) => {
       if (settled) return;
 
@@ -914,11 +912,10 @@ export async function callLLMSimpleViaCodex(messages, _maxTokens = 2000, modelTi
           // Extract text from completed response if we missed streaming
           if (!accumulatedText && response?.output) {
             for (const item of response.output) {
-              if (item.type === 'message' && item.content) {
-                for (const part of item.content) {
-                  if (part.type === 'output_text') {
-                    accumulatedText += part.text || '';
-                  }
+              if (item.type !== 'message' || !item.content) continue;
+              for (const part of item.content) {
+                if (part.type === 'output_text') {
+                  accumulatedText += part.text || '';
                 }
               }
             }

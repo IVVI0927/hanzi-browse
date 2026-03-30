@@ -1,4 +1,4 @@
-import { d, q, y, u, k, P as PROVIDERS, G } from "./providers.js";
+import { d, q, y, u, k, P as PROVIDERS, J } from "./providers.js";
 function OnboardingApp() {
   var _a, _b;
   const [status, setStatus] = d({
@@ -377,5 +377,5 @@ function StatusItem({ ok, label, detail }) {
     detail && /* @__PURE__ */ u("span", { class: "status-detail", children: detail })
   ] });
 }
-G(/* @__PURE__ */ u(OnboardingApp, {}), document.getElementById("app"));
+J(/* @__PURE__ */ u(OnboardingApp, {}), document.getElementById("app"));
 //# sourceMappingURL=onboarding.js.map

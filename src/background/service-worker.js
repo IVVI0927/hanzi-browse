@@ -641,6 +641,7 @@ async function executeTool(toolName, toolInput, sessionTabGroupId = null, mcpSes
  * @param {number|null} [initialTabGroupId] - Optional initial tab group ID from client
  * @returns {Promise<Object>} Task result with {success: boolean, message: string, error?: string}
  */
+// eslint-disable-next-line complexity, sonarjs/cognitive-complexity
 async function runAgentLoop(initialTabId, task, onUpdate, images = [], askBeforeActing = true, existingHistory = [], initialTabGroupId = null, mcpSession = null) {
   const sessionId = mcpSession?.sessionId || null;
   const taskLog = (type, message, data = null) => log(type, message, data, { sessionId });
@@ -1265,7 +1266,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           // Don't capture the current tab (which is likely the dashboard).
           // A dedicated tab will be created lazily on first tool execution in mcp-bridge.js.
           const capturedTabId = null;
-          const capturedWindowId = null;
 
           const res = await fetch(`${baseUrl}/v1/browser-sessions/register`, {
             method: 'POST',

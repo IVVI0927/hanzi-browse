@@ -65,6 +65,7 @@ function parseComputedStyles(strings, styleIndices) {
  * @param {number} devicePixelRatio - Device pixel ratio for coordinate conversion
  * @returns {Map<number, SnapshotNode>} backendNodeId → SnapshotNode
  */
+// eslint-disable-next-line sonarjs/cognitive-complexity
 export function buildSnapshotLookup(snapshot, devicePixelRatio = 1.0) {
   const lookup = new Map();
 

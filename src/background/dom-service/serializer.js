@@ -140,6 +140,7 @@ function shouldInclude(node) {
  * Build attributes string for an element.
  * Mirrors browser-use's _build_attributes_string()
  */
+// eslint-disable-next-line sonarjs/cognitive-complexity
 function buildAttributesString(node) {
   const attrs = {};
 
@@ -210,6 +211,7 @@ export function serializeDomTree(root, options = {}) {
   let charCount = 0;
   let truncated = false;
 
+  // eslint-disable-next-line sonarjs/cognitive-complexity
   function serialize(node, depth) {
     if (!node || truncated) return;
     if (charCount > maxChars) { truncated = true; return; }

@@ -4,11 +4,16 @@
     "src/content/content.js",
     "src/content/accessibility-tree.js",
     "src/content/agent-visual-indicator.js",
-    "src/sidepanel/sidepanel.js"
+    "src/sidepanel/sidepanel.js",
+    "src/sidepanel-preact/main.jsx",
+    "src/onboarding/main.jsx"
   ],
-  "project": ["src/**/*.js"],
+  "project": ["src/**/*.{js,jsx}"],
   "ignore": [
     "src/popup/**",
+    "src/**/*.test.js",
+    "src/**/*.coverage.test.js",
     "node_modules/**"
-  ]
+  ],
+  "ignoreDependencies": []
 }

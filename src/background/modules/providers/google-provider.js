@@ -6,7 +6,7 @@
 
 import { BaseProvider } from './base-provider.js';
 import { filterClaudeOnlyTools } from '../../../tools/definitions.js';
-import { getAccessToken, clearTokenCache } from '../vertex-auth.js';
+import { getAccessToken } from '../vertex-auth.js';
 
 export class GoogleProvider extends BaseProvider {
   getName() {
@@ -115,17 +115,9 @@ export class GoogleProvider extends BaseProvider {
       content.push({ type: 'text', text: '' });
     }
 
-    // Map Google finishReason to Anthropic stop_reason
-    let stopReason = 'end_turn'; // Default for STOP
-    if (candidate.finishReason === 'MAX_TOKENS') {
-      stopReason = 'max_tokens';
-    } else if (candidate.finishReason === 'SAFETY' || candidate.finishReason === 'RECITATION') {
-      stopReason = 'end_turn'; // Blocked content
-    }
-
     return {
       content,
-      stop_reason: stopReason,
+      stop_reason: this._mapFinishReason(candidate.finishReason),
       usage: response.usageMetadata,
     };
   }
@@ -133,10 +125,6 @@ export class GoogleProvider extends BaseProvider {
   async handleStreaming(response, onTextChunk, _log) {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
-
-    let result = {
-      content: [],
-    };
 
     let currentText = '';
     let toolCalls = [];
@@ -153,53 +141,64 @@ export class GoogleProvider extends BaseProvider {
       buffer = lines.pop() || '';
 
       for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        const data = line.slice(6);
+        const parsed = this._parseSSELine(line);
+        if (!parsed) continue;
 
-        try {
-          const chunk = JSON.parse(data);
-          const candidate = chunk.candidates?.[0];
-          if (!candidate) continue;
+        const { candidate, parts } = parsed;
+        ({ currentText, toolCalls } = this._accumulateStreamParts(parts, currentText, toolCalls, onTextChunk));
 
-          const parts = candidate.content?.parts || [];
-
-          for (const part of parts) {
-            // Handle text
-            if (part.text) {
-              currentText += part.text;
-              if (onTextChunk) onTextChunk(part.text);
-            }
-
-            // Handle function calls
-            if (part.functionCall) {
-              // Note: We intentionally don't preserve thoughtSignature
-              // to keep responses in canonical format compatible with all providers
-              toolCalls.push({
-                id: part.functionCall.id || `call_${Date.now()}_${toolCalls.length}`,
-                name: part.functionCall.name,
-                input: part.functionCall.args || {},
-              });
-            }
-          }
-
-          // Handle finish reason
-          if (candidate.finishReason) {
-            finishReason = candidate.finishReason;
-          }
-        } catch (e) {
-          // Ignore JSON parse errors for malformed chunks
+        if (candidate.finishReason) {
+          finishReason = candidate.finishReason;
         }
       }
     }
 
-    // Build content array
+    return this._buildStreamResult(currentText, toolCalls, finishReason);
+  }
+
+  /** @private */
+  _parseSSELine(line) {
+    if (!line.startsWith('data: ')) return null;
+    try {
+      const chunk = JSON.parse(line.slice(6));
+      const candidate = chunk.candidates?.[0];
+      if (!candidate) return null;
+      return { candidate, parts: candidate.content?.parts || [] };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /** @private */
+  _accumulateStreamParts(parts, currentText, toolCalls, onTextChunk) {
+    for (const part of parts) {
+      if (part.text) {
+        currentText += part.text;
+        if (onTextChunk) onTextChunk(part.text);
+      }
+      if (part.functionCall) {
+        // Note: We intentionally don't preserve thoughtSignature
+        // to keep responses in canonical format compatible with all providers
+        toolCalls.push({
+          id: part.functionCall.id || `call_${Date.now()}_${toolCalls.length}`,
+          name: part.functionCall.name,
+          input: part.functionCall.args || {},
+        });
+      }
+    }
+    return { currentText, toolCalls };
+  }
+
+  /** @private */
+  _buildStreamResult(currentText, toolCalls, finishReason) {
+    const content = [];
+
     if (currentText) {
-      result.content.push({ type: 'text', text: currentText });
+      content.push({ type: 'text', text: currentText });
     }
 
-    // Add tool calls (canonical format, no provider-specific fields)
     for (const toolCall of toolCalls) {
-      result.content.push({
+      content.push({
         type: 'tool_use',
         id: toolCall.id,
         name: toolCall.name,
@@ -207,21 +206,20 @@ export class GoogleProvider extends BaseProvider {
       });
     }
 
-    // Ensure content is never empty
-    if (result.content.length === 0) {
-      result.content.push({ type: 'text', text: '' });
+    if (content.length === 0) {
+      content.push({ type: 'text', text: '' });
     }
 
-    // Map finishReason to stop_reason
-    let stopReason = 'end_turn';
-    if (finishReason === 'MAX_TOKENS') {
-      stopReason = 'max_tokens';
-    } else if (finishReason === 'SAFETY' || finishReason === 'RECITATION') {
-      stopReason = 'end_turn'; // Blocked content
-    }
-    result.stop_reason = stopReason;
+    return {
+      content,
+      stop_reason: this._mapFinishReason(finishReason),
+    };
+  }
 
-    return result;
+  /** @private */
+  _mapFinishReason(finishReason) {
+    if (finishReason === 'MAX_TOKENS') return 'max_tokens';
+    return 'end_turn';
   }
 
   /**
@@ -256,82 +254,95 @@ export class GoogleProvider extends BaseProvider {
    */
   _convertMessages(anthropicMessages) {
     const googleMessages = [];
-    const toolUseIdToName = {}; // Track tool_use_id -> function name mapping
+    const toolUseIdToName = {};
 
     for (const msg of anthropicMessages) {
       const role = msg.role === 'assistant' ? 'model' : msg.role;
       const parts = [];
 
-      // Simple string content
       if (typeof msg.content === 'string') {
         parts.push({ text: msg.content });
-      }
-      // Array content
-      else if (Array.isArray(msg.content)) {
+      } else if (Array.isArray(msg.content)) {
         for (const block of msg.content) {
-          if (block.type === 'text') {
-            parts.push({ text: block.text });
-          } else if (block.type === 'tool_use') {
-            // Track the mapping for later tool_result conversion
-            toolUseIdToName[block.id] = block.name;
-
-            // Convert to Google's functionCall format
-            parts.push({
-              functionCall: {
-                name: block.name,
-                args: block.input,
-              },
-            });
-          } else if (block.type === 'tool_result') {
-            // Convert to Google's functionResponse format
-            let responseContent = block.content;
-            if (Array.isArray(block.content)) {
-              // Extract text from array content
-              const textParts = [];
-              for (const c of block.content) {
-                if (c.type === 'text') {
-                  textParts.push(c.text);
-                } else if (c.type === 'image' && c.source?.data) {
-                  // Add image as inline data part (Gemini supports this)
-                  parts.push({
-                    inlineData: {
-                      mimeType: c.source.media_type || 'image/jpeg',
-                      data: c.source.data,
-                    },
-                  });
-                }
-              }
-              responseContent = textParts.join('\n');
-            }
-
-            // Look up the function name from the tool_use_id
-            const functionName = toolUseIdToName[block.tool_use_id] || 'unknown';
-
-            parts.push({
-              functionResponse: {
-                name: functionName,
-                response: { result: responseContent },
-              },
-            });
-          } else if (block.type === 'image' && block.source?.data) {
-            // Standalone image block
-            parts.push({
-              inlineData: {
-                mimeType: block.source.media_type || 'image/jpeg',
-                data: block.source.data,
-              },
-            });
-          }
+          this._convertContentBlock(block, parts, toolUseIdToName);
         }
       }
 
-      // Only add if we have parts
       if (parts.length > 0) {
         googleMessages.push({ role, parts });
       }
     }
 
     return googleMessages;
+  }
+
+  /** @private */
+  _convertContentBlock(block, parts, toolUseIdToName) {
+    if (block.type === 'text') {
+      parts.push({ text: block.text });
+      return;
+    }
+
+    if (block.type === 'tool_use') {
+      toolUseIdToName[block.id] = block.name;
+      parts.push({
+        functionCall: {
+          name: block.name,
+          args: block.input,
+        },
+      });
+      return;
+    }
+
+    if (block.type === 'tool_result') {
+      this._convertToolResult(block, parts, toolUseIdToName);
+      return;
+    }
+
+    if (block.type === 'image' && block.source?.data) {
+      parts.push({
+        inlineData: {
+          mimeType: block.source.media_type || 'image/jpeg',
+          data: block.source.data,
+        },
+      });
+    }
+  }
+
+  /** @private */
+  _convertToolResult(block, parts, toolUseIdToName) {
+    let responseContent = block.content;
+
+    if (Array.isArray(block.content)) {
+      responseContent = this._extractToolResultContent(block.content, parts);
+    }
+
+    const functionName = toolUseIdToName[block.tool_use_id] || 'unknown';
+
+    parts.push({
+      functionResponse: {
+        name: functionName,
+        response: { result: responseContent },
+      },
+    });
+  }
+
+  /** @private */
+  _extractToolResultContent(contentArray, parts) {
+    const textParts = [];
+    for (const c of contentArray) {
+      if (c.type === 'text') {
+        textParts.push(c.text);
+      } else if (c.type === 'image' && c.source?.data) {
+        parts.push({
+          inlineData: {
+            mimeType: c.source.media_type || 'image/jpeg',
+            data: c.source.data,
+          },
+        });
+      }
+    }
+    return textParts.join('\n');
   }
 
   /**

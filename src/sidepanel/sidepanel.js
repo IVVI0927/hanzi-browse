@@ -1070,6 +1070,7 @@ function addSystemMessage(text) {
   scrollToBottom();
 }
 
+// eslint-disable-next-line sonarjs/cognitive-complexity
 function formatMarkdown(text) {
   const lines = text.split('\n');
   let result = [];

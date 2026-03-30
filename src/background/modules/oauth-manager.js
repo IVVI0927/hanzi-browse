@@ -16,7 +16,7 @@ const OAUTH_CONFIG = {
   redirectUri: 'http://127.0.0.1:8080/callback'
 };
 
-import { relayRequest, isRelayConnected } from './mcp-bridge.js';
+import { relayRequest, isRelayConnected } from './relay-client.js';
 
 const NATIVE_HOST_NAME = 'com.hanzi_browse.oauth_host';
 

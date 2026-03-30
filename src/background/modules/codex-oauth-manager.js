@@ -5,7 +5,7 @@
  * to use ChatGPT Pro/Plus subscription quota instead of API rate limits.
  */
 
-import { relayRequest, isRelayConnected } from './mcp-bridge.js';
+import { relayRequest, isRelayConnected } from './relay-client.js';
 
 const NATIVE_HOST_NAME = 'com.hanzi_browse.oauth_host';
 

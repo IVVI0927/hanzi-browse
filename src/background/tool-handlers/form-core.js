@@ -308,6 +308,7 @@ export async function handleFormInput(input) {
     const result = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       world: 'ISOLATED',
+      // eslint-disable-next-line sonarjs/cognitive-complexity
       func: async (ref, value) => {
         try {
           let element = null;
