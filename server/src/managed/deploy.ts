@@ -20,6 +20,7 @@ import { createServer, IncomingMessage, ServerResponse } from "http";
 import { randomUUID } from "crypto";
 import { initVertex } from "../llm/vertex.js";
 import { getClaudeCredentials, getClaudeKeychainCredentials, getCodexCredentials } from "../llm/credentials.js";
+import { handleApiProxy } from "../relay/api-proxy.js";
 import { startManagedAPI, initManagedAPI, handleRelayMessage, setStoreModule, onSessionDisconnected, shutdownManagedAPI, recoverStuckTasks, runInternalTask } from "./api.js";
 import { initScheduler, startScheduler, stopScheduler } from "./scheduler.js";
 import { notifyDraftsReady } from "./notify.js";
@@ -249,6 +250,11 @@ function setupRelayHandlers(wss: WebSocketServer): void {
 
         const sender = relayClients.get(ws);
         if (!sender) return;
+
+        if (msg.type === "proxy_api_call" && sender.role === "extension") {
+          await handleApiProxy(ws, msg, (message) => console.error(`[Relay] ${message}`));
+          return;
+        }
 
         // Match standalone relay behavior for onboarding / credential import flows.
         if (msg.type === "status_query") {
