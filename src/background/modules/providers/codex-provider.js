@@ -1,13 +1,15 @@
 /**
  * Codex Provider
- * Handles Codex/ChatGPT Pro API through native messaging proxy
+ * Handles Codex/ChatGPT Pro API through relay proxy when available,
+ * with native messaging as a fallback.
  *
  * Uses OAuth credentials from Codex CLI (~/.codex/auth.json)
- * Routes through native host to bypass CORS and use authenticated requests
+ * Routes through the local relay to bypass CORS and use authenticated requests.
  */
 
 import { BaseProvider } from './base-provider.js';
 import { filterClaudeOnlyTools } from '../../../tools/definitions.js';
+import { isRelayConnected, proxyApiCall } from '../relay-client.js';
 
 const NATIVE_HOST_NAME = 'com.hanzi_browse.oauth_host';
 const CODEX_API_URL = 'https://chatgpt.com/backend-api/codex/responses';
@@ -22,7 +24,7 @@ export class CodexProvider extends BaseProvider {
   }
 
   getHeaders() {
-    // Headers are handled by native host using stored credentials
+    // Headers are handled by the proxy using stored credentials
     return {
       'Content-Type': 'application/json',
     };
@@ -54,21 +56,48 @@ export class CodexProvider extends BaseProvider {
   }
 
   /**
-   * Override call method to use native messaging proxy
+   * Override call method to use relay proxy when available.
    */
   async call(messages, systemPrompt, tools, onTextChunk, log) {
     const useStreaming = !!onTextChunk;
     const requestBody = this.buildRequestBody(messages, systemPrompt, tools, useStreaming);
     const url = this.buildUrl(useStreaming);
-    const REQUEST_TIMEOUT_MS = 150000;
 
-    await log?.('DEBUG', 'Codex API call through proxy', {
+    const proxyDetails = {
       url,
       model: requestBody.model,
       messageCount: messages.length,
       streaming: useStreaming,
+    };
+
+    if (isRelayConnected()) {
+      await log?.('DEBUG', 'Codex API call through relay proxy', proxyDetails);
+      return this._callViaRelay(url, requestBody, onTextChunk);
+    }
+
+    await log?.('DEBUG', 'Codex API call through native host', proxyDetails);
+    return this._callViaNativeHost(url, requestBody, onTextChunk);
+  }
+
+  async _callViaRelay(url, requestBody, onTextChunk) {
+    let result = {
+      content: [],
+      usage: null,
+      stop_reason: 'end_turn',
+    };
+    let currentText = '';
+    let itemsById = {};
+
+    await proxyApiCall(url, JSON.stringify(requestBody), (event) => {
+      currentText = this._handleStreamChunk(event, itemsById, currentText, result, onTextChunk);
     });
 
+    this._finalizeStreamResult(result, currentText, itemsById);
+    return result;
+  }
+
+  _callViaNativeHost(url, requestBody, onTextChunk) {
+    const REQUEST_TIMEOUT_MS = 150000;
     return new Promise((resolve, reject) => {
       let port = null;
       let settled = false;
@@ -159,7 +188,7 @@ export class CodexProvider extends BaseProvider {
         port.postMessage({
           type: 'proxy_api_call',
           data: {
-            url: url,
+            url,
             method: 'POST',
             body: JSON.stringify(requestBody),
             headers: this.getHeaders(),
