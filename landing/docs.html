@@ -283,6 +283,10 @@ GET /v1/tasks/:id/steps
   Returns: {"steps": [{"step": 1, "status": "tool_use", "toolName": "navigate", ...}]}
   → Full execution log for debugging.
 
+GET /v1/tasks/:id/screenshots/:step
+  Returns: {"screenshot": "data:image/png;base64,..."}
+  → Screenshot at a specific step, useful for debugging UIs.
+
 GET /v1/billing/credits
   Returns: {"free_remaining": 20, "credit_balance": 0, "free_tasks_per_month": 20}
 
@@ -290,6 +294,9 @@ GET /v1/billing/credits
 - 20 free tasks/month, then $0.05 per completed task. Errors are free.
 - Tasks timeout after 30 min. Use cancel to stop early.
 - Browser sessions last 30 days and auto-reconnect.
+- Two key types: secret (hic_live_) for server-side, publishable (hic_pub_) for client-side embed widget.
+- POST /v1/tasks accepts optional webhook_url — Hanzi POSTs the result to your URL on completion.
+- Embed widget: &lt;script src="https://browse.hanzilla.co/embed.js"&gt;&lt;/script&gt; + HanziConnect.mount()
 - The user needs the Hanzi Chrome extension installed.
   Install link: https://chromewebstore.google.com/detail/iklpkemlmbhemkiojndpbhoakgikpmcd
 
@@ -362,6 +369,21 @@ curl -X POST https://api.hanzilla.co/v1/api-keys \
             <span class="endpoint-method method-delete">DELETE</span>
             <span class="endpoint-path">/v1/api-keys/:id</span>
             <div class="endpoint-desc">Delete an API key. Integrations using this key will immediately stop working.</div>
+        </div>
+
+        <h3>Key types</h3>
+        <table>
+            <tr><th>Type</th><th>Prefix</th><th>Use case</th><th>Permissions</th></tr>
+            <tr><td><strong>Secret</strong></td><td><code>hic_live_</code></td><td>Server-side, SDK</td><td>All endpoints</td></tr>
+            <tr><td><strong>Publishable</strong></td><td><code>hic_pub_</code></td><td>Client-side, embed widget</td><td>Pair browsers, list sessions only</td></tr>
+        </table>
+        <div class="code-block"><pre># Create a publishable key
+curl -X POST https://api.hanzilla.co/v1/api-keys \
+  -H "Authorization: Bearer hic_live_..." \
+  -H "Content-Type: application/json" \
+  -d '{"name": "frontend-widget", "type": "publishable"}'</pre></div>
+        <div class="callout callout-warn">
+            <strong>Security:</strong> Never expose secret keys (<code>hic_live_</code>) in client-side code. Use publishable keys (<code>hic_pub_</code>) for the embed widget. Publishable keys can only pair browsers — they cannot create tasks or access billing.
         </div>
 
         <!-- ─── BROWSER SESSIONS ─── -->
@@ -443,6 +465,7 @@ curl -X POST https://api.hanzilla.co/v1/tasks \
             <tr><td><code>browser_session_id</code></td><td>Yes</td><td>Connected session to run against</td></tr>
             <tr><td><code>url</code></td><td>No</td><td>Starting URL (max 2,048 chars)</td></tr>
             <tr><td><code>context</code></td><td>No</td><td>Extra context for the agent (max 50,000 chars)</td></tr>
+            <tr><td><code>webhook_url</code></td><td>No</td><td>URL to POST results to on completion (max 2,048 chars)</td></tr>
         </table>
 
         <div class="endpoint">
@@ -468,6 +491,56 @@ curl -X POST https://api.hanzilla.co/v1/tasks \
             <span class="endpoint-path">/v1/tasks/:id/cancel</span>
             <div class="endpoint-desc">Cancel a running task.</div>
         </div>
+
+        <div class="endpoint">
+            <span class="endpoint-method method-get">GET</span>
+            <span class="endpoint-path">/v1/tasks/:id/steps</span>
+            <div class="endpoint-desc">Get the full execution log for a task, including each tool call and result.</div>
+        </div>
+        <div class="code-block"><pre># Response (200)
+{
+  "steps": [
+    {"step": 1, "status": "tool_use", "toolName": "navigate", "url": "https://example.com"},
+    {"step": 2, "status": "tool_use", "toolName": "read_page"}
+  ]
+}</pre></div>
+
+        <div class="endpoint">
+            <span class="endpoint-method method-get">GET</span>
+            <span class="endpoint-path">/v1/tasks/:id/screenshots/:step</span>
+            <div class="endpoint-desc">Get the screenshot captured at a specific step. Returns base64 PNG.</div>
+        </div>
+        <div class="code-block"><pre># Response (200)
+{
+  "screenshot": "data:image/png;base64,iVBORw0KGgo..."
+}</pre></div>
+
+        <h3>Webhooks</h3>
+        <p>Instead of polling, pass a <code>webhook_url</code> when creating a task. Hanzi will POST the result to your URL when the task finishes:</p>
+        <div class="code-block"><pre># Create a task with webhook
+curl -X POST https://api.hanzilla.co/v1/tasks \
+  -H "Authorization: Bearer hic_live_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "task": "Read the current page title",
+    "browser_session_id": "550e8400-...",
+    "webhook_url": "https://yourapp.com/api/hanzi-callback"
+  }'
+
+# Hanzi POSTs to your URL on completion:
+{
+  "event": "task.completed",
+  "task": {
+    "id": "task_abc123",
+    "status": "complete",
+    "answer": "The page title is...",
+    "steps": 3,
+    "usage": { "inputTokens": 8000, "outputTokens": 500, "apiCalls": 4 },
+    "created_at": 1710000000000,
+    "completed_at": 1710000030000
+  }
+}</pre></div>
+        <p>Webhook delivery is fire-and-forget with a 10-second timeout. If your endpoint is down, the result is still available via <code>GET /v1/tasks/:id</code>.</p>
 
         <div class="endpoint">
             <span class="endpoint-method method-get">GET</span>
@@ -517,6 +590,32 @@ curl -X POST https://api.hanzilla.co/v1/browser-sessions/pair \
         <p>The pairing page detects the Hanzi extension and pairs automatically. If the extension isn't installed, the user sees an "Install" button.</p>
 
         <p>Sessions auto-reconnect on browser restart — no re-pairing needed. Use <code>label</code> and <code>external_user_id</code> to track which session belongs to which user.</p>
+
+        <h3>Embed widget (recommended)</h3>
+        <p>Drop-in UI component that handles extension detection, pairing, and connection status — like Stripe's checkout widget.</p>
+        <div class="code-block"><pre>&lt;script src="https://browse.hanzilla.co/embed.js"&gt;&lt;/script&gt;
+&lt;div id="hanzi-connect"&gt;&lt;/div&gt;
+&lt;script&gt;
+  HanziConnect.mount('#hanzi-connect', {
+    apiKey: 'hic_pub_...',  // publishable key — safe for client-side
+    purpose: 'read your EHR on your behalf',
+    onConnected: (sessionId) =&gt; {
+      // Send sessionId to your backend to run tasks
+      fetch('/api/set-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId }),
+      });
+    },
+    onDisconnected: () =&gt; {
+      // Browser disconnected — show re-pair UI
+    },
+  });
+&lt;/script&gt;</pre></div>
+
+        <div class="callout callout-warn">
+            <strong>Security pattern:</strong> Use a publishable key (<code>hic_pub_</code>) in the widget. Send the <code>sessionId</code> to your backend. Your backend uses the secret key (<code>hic_live_</code>) to create tasks. Never put secret keys in client-side code.
+        </div>
 
         <!-- ─── SESSION METADATA ─── -->
         <h2 id="session-metadata">Session Metadata</h2>
