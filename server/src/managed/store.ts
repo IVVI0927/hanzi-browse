@@ -27,6 +27,7 @@ export interface ApiKey {
   workspaceId: string;
   createdAt: number;
   lastUsedAt?: number;
+  type?: "secret" | "publishable"; // default: "secret"
 }
 
 export interface Workspace {
@@ -211,8 +212,9 @@ export function updateWorkspaceBilling(id: string, fields: {
 
 // --- API Keys ---
 
-export function createApiKey(workspaceId: string, name: string): ApiKey {
-  const key = `hic_live_${randomBytes(24).toString("hex")}`;
+export function createApiKey(workspaceId: string, name: string, type: "secret" | "publishable" = "secret"): ApiKey {
+  const prefix = type === "publishable" ? "hic_pub_" : "hic_live_";
+  const key = `${prefix}${randomBytes(24).toString("hex")}`;
   const keyHash = hashSecret(key);
   const keyPrefix = key.slice(0, 20);
   const apiKey: ApiKey = {
@@ -222,6 +224,7 @@ export function createApiKey(workspaceId: string, name: string): ApiKey {
     name,
     workspaceId,
     createdAt: Date.now(),
+    type,
   };
   data.apiKeys[keyHash] = apiKey;
   save();

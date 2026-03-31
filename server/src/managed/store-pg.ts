@@ -27,6 +27,7 @@ export interface ApiKey {
   workspaceId: string;
   createdAt: number;
   lastUsedAt?: number;
+  type?: "secret" | "publishable";
 }
 
 export interface Workspace {
@@ -269,16 +270,17 @@ export async function addCredits(workspaceId: string, amount: number): Promise<n
 
 // --- API Keys ---
 
-export async function createApiKey(workspaceId: string, name: string): Promise<ApiKey> {
-  const plainKey = `hic_live_${randomBytes(24).toString("hex")}`;
+export async function createApiKey(workspaceId: string, name: string, type: "secret" | "publishable" = "secret"): Promise<ApiKey> {
+  const prefix = type === "publishable" ? "hic_pub_" : "hic_live_";
+  const plainKey = `${prefix}${randomBytes(24).toString("hex")}`;
   const keyHash = hashSecret(plainKey);
   const id = randomUUID();
   const now = Date.now();
   await db().query(
-    "INSERT INTO api_keys (id, key_hash, key_prefix, name, workspace_id, created_at) VALUES ($1, $2, $3, $4, $5, $6)",
-    [id, keyHash, plainKey.slice(0, 20), name, workspaceId, new Date(now)]
+    "INSERT INTO api_keys (id, key_hash, key_prefix, name, workspace_id, created_at, type) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+    [id, keyHash, plainKey.slice(0, 20), name, workspaceId, new Date(now), type]
   );
-  return { id, key: plainKey, name, workspaceId, createdAt: now };
+  return { id, key: plainKey, name, workspaceId, createdAt: now, type };
 }
 
 export async function validateApiKey(key: string): Promise<ApiKey | null> {
@@ -292,10 +294,12 @@ export async function validateApiKey(key: string): Promise<ApiKey | null> {
   return {
     id: r.id,
     key: keyHash,
+    keyPrefix: r.key_prefix,
     name: r.name,
     workspaceId: r.workspace_id,
     createdAt: new Date(r.created_at).getTime(),
     lastUsedAt: r.last_used_at ? new Date(r.last_used_at).getTime() : undefined,
+    type: r.type || "secret",
   };
 }
 

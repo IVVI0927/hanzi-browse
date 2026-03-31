@@ -272,3 +272,6 @@ CREATE TABLE IF NOT EXISTS engagement_log (
 
 CREATE INDEX IF NOT EXISTS idx_engagement_workspace ON engagement_log(workspace_id, posted_at DESC);
 CREATE INDEX IF NOT EXISTS idx_engagement_handle ON engagement_log(workspace_id, author_handle);
+
+-- Migration: add type column to api_keys (publishable vs secret)
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS type TEXT NOT NULL DEFAULT 'secret';

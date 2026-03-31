@@ -609,6 +609,10 @@ async function authenticate(req: IncomingMessage): Promise<ApiKey | null> {
   return null;
 }
 
+function isPublishableKey(apiKey: ApiKey): boolean {
+  return apiKey.type === "publishable" || apiKey.keyPrefix?.startsWith("hic_pub_") === true;
+}
+
 // --- Handlers ---
 
 const MAX_TASK_LEN = 10_000;
@@ -1364,6 +1368,10 @@ async function handleRequest(
     // --- Tasks ---
 
     if (method === "POST" && url === "/v1/tasks") {
+      if (isPublishableKey(apiKey)) {
+        sendJson(req, res, 403, { error: "Publishable keys cannot create tasks. Use a secret key (hic_live_...)." });
+        return;
+      }
       const body = await parseBody(req);
       const result = await handleCreateTask(body, apiKey, requestId);
       sendJson(req, res, result.status, result.data);
@@ -1446,6 +1454,10 @@ async function handleRequest(
     // --- Usage ---
 
     if (method === "GET" && url === "/v1/usage") {
+      if (isPublishableKey(apiKey)) {
+        sendJson(req, res, 403, { error: "Publishable keys cannot access usage data." });
+        return;
+      }
       const summary = await S.getUsageSummary(apiKey.workspaceId);
       sendJson(req, res, 200, summary);
       return;
@@ -1454,18 +1466,24 @@ async function handleRequest(
     // --- API Keys (self-serve) ---
 
     if (method === "POST" && url === "/v1/api-keys") {
+      if (isPublishableKey(apiKey)) {
+        sendJson(req, res, 403, { error: "Publishable keys cannot create API keys." });
+        return;
+      }
       const body = await parseBody(req);
       const name = body.name?.trim();
       if (!name || typeof name !== "string" || name.length > 100) {
         sendJson(req, res, 400, { error: "name is required (string, max 100 chars)" });
         return;
       }
-      const newKey = await S.createApiKey(apiKey.workspaceId, name);
+      const type = body.type === "publishable" ? "publishable" : "secret";
+      const newKey = await S.createApiKey(apiKey.workspaceId, name, type);
       trackManagedEvent("api_key_created", apiKey.workspaceId);
       sendJson(req, res, 201, {
         id: newKey.id,
         key: newKey.key, // plaintext — shown once
         name: newKey.name,
+        type: newKey.type,
         created_at: newKey.createdAt,
         workspace_id: newKey.workspaceId,
         _warning: "Save this key now. It will not be shown again.",
@@ -1489,6 +1507,10 @@ async function handleRequest(
 
     const apiKeyMatch = url?.match(/^\/v1\/api-keys\/([^/]+)$/);
     if (apiKeyMatch && method === "DELETE") {
+      if (isPublishableKey(apiKey)) {
+        sendJson(req, res, 403, { error: "Publishable keys cannot delete API keys." });
+        return;
+      }
       const keyId = apiKeyMatch[1];
       const deleted = await S.deleteApiKey(keyId, apiKey.workspaceId);
       if (!deleted) {
@@ -1503,6 +1525,10 @@ async function handleRequest(
 
     // GET /v1/billing/credits — check credit balance + free tier status
     if (method === "GET" && url === "/v1/billing/credits") {
+      if (isPublishableKey(apiKey)) {
+        sendJson(req, res, 403, { error: "Publishable keys cannot access billing data." });
+        return;
+      }
       const allowance = await S.checkTaskAllowance(apiKey.workspaceId);
       sendJson(req, res, 200, {
         free_remaining: allowance.freeRemaining,
@@ -1514,6 +1540,10 @@ async function handleRequest(
 
     // POST /v1/billing/checkout — buy credits
     if (method === "POST" && url === "/v1/billing/checkout") {
+      if (isPublishableKey(apiKey)) {
+        sendJson(req, res, 403, { error: "Publishable keys cannot access billing." });
+        return;
+      }
       if (!isBillingEnabled()) {
         sendJson(req, res, 503, { error: "Billing not configured. Contact support." });
         return;
