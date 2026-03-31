@@ -123,6 +123,7 @@
     this.sessionId = null;
     this._extensionReady = false;
     this._pairResolve = null;
+    this._nonce = null;
 
     this._shadow = host.attachShadow({ mode: 'open' });
     this._setupMessageListener();
@@ -138,7 +139,10 @@
         self._extensionReady = true;
       }
       if (e.data.type === 'HANZI_PAIR_RESULT') {
-        if (self._pairResolve) {
+        // Validate nonce to prevent forged HANZI_PAIR_RESULT messages from
+        // other scripts on the page triggering onConnected with a fake sessionId.
+        if (self._pairResolve && self._nonce && e.data.nonce === self._nonce) {
+          self._nonce = null;
           self._pairResolve(e.data);
           self._pairResolve = null;
         }
@@ -188,7 +192,11 @@
 
         var token = r.data.pairing_token;
 
-        // Ask extension to pair via postMessage
+        // Generate a one-time nonce so only the genuine extension response
+        // (which echoes the nonce back) can resolve the pairing promise.
+        // This prevents other scripts on the page from forging HANZI_PAIR_RESULT.
+        var nonce = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+        self._nonce = nonce;
         self._pairResolve = null;
         var pairPromise = new Promise(function (resolve) {
           self._pairResolve = resolve;
@@ -196,6 +204,7 @@
             type: 'HANZI_PAIR',
             token: token,
             apiUrl: self.apiUrl,
+            nonce: nonce,
           }, '*');
         });
 
