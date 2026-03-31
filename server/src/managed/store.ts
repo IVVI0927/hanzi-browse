@@ -56,6 +56,7 @@ export interface TaskRun {
   usage: { inputTokens: number; outputTokens: number; apiCalls: number };
   createdAt: number;
   completedAt?: number;
+  webhookUrl?: string;
 }
 
 export interface PairingToken {
@@ -267,6 +268,7 @@ export function createTaskRun(params: {
   url?: string;
   context?: string;
   browserSessionId?: string;
+  webhookUrl?: string;
 }): TaskRun {
   const run: TaskRun = {
     id: randomUUID(),

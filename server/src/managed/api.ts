@@ -46,6 +46,20 @@ export function setStoreModule(storeModule: typeof fileStore): void {
   S = storeModule;
 }
 
+async function fireWebhook(url: string, payload: any): Promise<void> {
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(10000),
+    });
+    log.info("Webhook delivered", {}, { url, status: res.status });
+  } catch (err: any) {
+    log.warn("Webhook delivery failed", {}, { url, error: err.message });
+  }
+}
+
 function categorizeError(err: Error): string {
   const msg = err.message.toLowerCase();
   if (msg.includes("timeout")) return "timeout";
@@ -607,7 +621,7 @@ async function handleCreateTask(
   apiKey: ApiKey,
   requestId?: string
 ): Promise<{ status: number; data: any }> {
-  const { task, url, context, browser_session_id } = body;
+  const { task, url, context, browser_session_id, webhook_url } = body;
 
   // --- Input validation first (400 errors don't burn rate limit quota) ---
   if (!task?.trim()) {
@@ -636,6 +650,20 @@ async function handleCreateTask(
       status: 400,
       data: { error: "browser_session_id is required. Create one via POST /v1/browser-sessions/pair" },
     };
+  }
+
+  if (webhook_url !== undefined) {
+    if (typeof webhook_url !== "string" || webhook_url.length > 2048) {
+      return { status: 400, data: { error: "webhook_url must be a string under 2048 characters" } };
+    }
+    try {
+      const parsed = new URL(webhook_url);
+      if (!["http:", "https:"].includes(parsed.protocol)) {
+        return { status: 400, data: { error: "webhook_url must use http or https" } };
+      }
+    } catch {
+      return { status: 400, data: { error: "webhook_url must be a valid URL" } };
+    }
   }
 
   // --- Credit check (free tier + paid credits) ---
@@ -702,6 +730,7 @@ async function handleCreateTask(
     url,
     context,
     browserSessionId: browser_session_id,
+    webhookUrl: webhook_url,
   });
 
   trackManagedEvent("task_created", apiKey.workspaceId, { has_url: !!url, has_context: !!context });
@@ -848,6 +877,24 @@ async function handleCreateTask(
           input_tokens: result.usage.inputTokens,
           output_tokens: result.usage.outputTokens,
         });
+        // Fire webhook if configured
+        if (taskRun.webhookUrl) {
+          const run = await S.getTaskRun(taskRun.id);
+          if (run) {
+            fireWebhook(taskRun.webhookUrl, {
+              event: "task.completed",
+              task: {
+                id: run.id,
+                status: run.status,
+                answer: run.answer,
+                steps: run.steps,
+                usage: run.usage,
+                created_at: run.createdAt,
+                completed_at: run.completedAt,
+              },
+            });
+          }
+        }
         log.info("Task completed", { requestId, taskId: taskRun.id, workspaceId: apiKey.workspaceId }, { status, steps: result.steps });
       }
     })
@@ -869,6 +916,16 @@ async function handleCreateTask(
             log.error("Task error status update FAILED permanently", { taskId: taskRun.id }, { error: updateErr.message });
           }
         }
+      }
+      if (taskRun.webhookUrl) {
+        fireWebhook(taskRun.webhookUrl, {
+          event: "task.failed",
+          task: {
+            id: taskRun.id,
+            status: "error",
+            answer: `Agent loop crashed: ${err.message}`,
+          },
+        });
       }
       log.error("Task crashed", { requestId, taskId: taskRun.id, workspaceId: apiKey.workspaceId }, { error: err.message });
     })
