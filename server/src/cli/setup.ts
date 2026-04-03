@@ -804,7 +804,7 @@ function getSkillsSource(): string {
   return fromSrc;
 }
 
-const SKILL_NAMES = ['hanzi-browse', 'e2e-tester', 'social-poster', 'linkedin-prospector', 'a11y-auditor', 'x-marketer'];
+const SKILL_NAMES = ['hanzi-browse', 'e2e-tester', 'social-poster', 'linkedin-prospector', 'a11y-auditor', 'data-extractor', 'x-marketer'];
 
 async function installSkills(agents: AgentConfig[], isInteractive: boolean): Promise<void> {
   const skillsSource = getSkillsSource();
