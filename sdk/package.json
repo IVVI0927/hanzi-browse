@@ -13,6 +13,9 @@
   },
   "homepage": "https://browse.hanzilla.co/docs.html#build-with-hanzi",
   "keywords": ["browser-automation", "ai-agent", "hanzi", "mcp", "chrome"],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc",
     "prepublishOnly": "npm run build"
