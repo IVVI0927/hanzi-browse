@@ -38,11 +38,17 @@ reads authenticated pages — in your real signed-in browser.
 
 ## Two ways to use Hanzi
 
-### Use it now — give your agent a browser
+Same engine underneath. Different audience, different install path.
+
+### Use it — a browser sub-agent for your coding agent
+
+One command. `npx hanzi-browse setup` detects every AI agent on your machine (Claude Code, Cursor, Codex, and 9 more) and wires Hanzi in as an MCP tool. Your main agent stays focused on code; Hanzi handles the browser loop — with verified playbooks for 20+ sites so tasks actually succeed.
 
 ![Use it now](docs/diagrams/use-it.svg)
 
-### Build with it — embed browser automation in your product
+### Build with it — browser automation for your users, described in English
+
+Your backend calls `runTask({ task: "…" })`. Your users' own Chrome executes it, signed in as themselves. Same site knowledge as the CLI, exposed as a REST API and `@hanzi-browse/sdk`. Free tools on [tools.hanzilla.co](https://tools.hanzilla.co) are built on this SDK.
 
 ![Build with it](docs/diagrams/build-with-it.svg)
 
