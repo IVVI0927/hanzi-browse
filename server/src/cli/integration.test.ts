@@ -10,6 +10,8 @@ const CLI = join(__dirname, '..', '..', 'dist', 'cli.js');
 async function runCli(args: string[], env: Record<string, string> = {}): Promise<{ code: number; stdout: string; stderr: string }> {
   return new Promise((resolve) => {
     const p = spawn('node', [CLI, ...args], { env: { ...process.env, ...env } });
+    // Close stdin immediately so the CLI doesn't block waiting for piped input.
+    p.stdin.end();
     let stdout = '', stderr = '';
     p.stdout.on('data', (d) => stdout += d);
     p.stderr.on('data', (d) => stderr += d);
@@ -170,4 +172,32 @@ describe('--timeout', () => {
     expect(elapsed).toBeGreaterThan(900);
     expect(elapsed).toBeLessThan(3500);
   });
+});
+
+describe('stdin task support', () => {
+  let relay: MockRelay;
+  beforeAll(async () => { relay = await MockRelay.start(); });
+  afterAll(async () => { await relay.stop(); });
+
+  it('reads the task from stdin when no positional is given', async () => {
+    const startIdx = relay.received.length;
+    const timer = respondWhenStarted(relay, startIdx, (sessionId) => ({
+      type: 'task_complete',
+      sessionId,
+      result: 'ok',
+    }));
+
+    const p = spawn('node', [CLI, 'start'], {
+      env: { ...process.env, HANZI_RELAY_URL: `ws://127.0.0.1:${relay.port}` },
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    p.stdin.write('multi-line\ntask from stdin\n');
+    p.stdin.end();
+    let stderr = '';
+    p.stderr.on('data', (d) => stderr += d);
+    const code = await new Promise<number>((res) => p.on('close', c => res(c ?? -1)));
+    clearInterval(timer);
+    expect(code).toBe(0);
+    expect(stderr).toContain('multi-line');
+  }, 15000);
 });

@@ -165,9 +165,17 @@ function loadSkillPrompt(skillName: string): string | null {
 }
 
 async function cmdStart(): Promise<void> {
-  const task = args[1];
+  let task = args[1];
+
+  if (!task && !process.stdin.isTTY) {
+    const chunks: Buffer[] = [];
+    for await (const chunk of process.stdin) chunks.push(Buffer.from(chunk));
+    task = Buffer.concat(chunks).toString('utf-8').trim();
+  }
+
   if (!task) {
-    console.error('Usage: hanzi-browser start "task description" [--url URL] [--context TEXT] [--skill NAME]');
+    console.error('Usage: hanzi-browse start "task description" [--url URL] [--context TEXT] [--skill NAME] [--timeout 5m]');
+    console.error('       echo "task" | hanzi-browse start   (also works)');
     process.exit(EXIT_CLI_ERROR);
   }
 
