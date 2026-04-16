@@ -30,6 +30,25 @@ if (process.argv[2] === 'telemetry') {
   process.exit(0);
 }
 
+// If invoked with a CLI subcommand, delegate to cli.js.
+// With no arguments, fall through to MCP stdio mode (how MCP clients launch it).
+{
+  const CLI_SUBCOMMANDS = new Set([
+    'start', 'status', 'message', 'logs', 'stop', 'screenshot',
+    'skills', 'setup', 'doctor', 'help',
+    '--help', '-h', '--version', '-v',
+  ]);
+  const firstArg = process.argv[2];
+  if (firstArg && CLI_SUBCOMMANDS.has(firstArg)) {
+    // Importing cli.js triggers its main() as a side-effect.
+    // Commands that block (start, message, stop, screenshot) call process.exit() internally.
+    // Commands that return synchronously (help, status, skills) resolve the import promise.
+    await import('./cli.js');
+    // If cli.js main() returned without calling process.exit(), exit cleanly now.
+    process.exit(0);
+  }
+}
+
 import { initTelemetry, trackEvent, captureException, shutdownTelemetry } from "./telemetry.js";
 
 initTelemetry();

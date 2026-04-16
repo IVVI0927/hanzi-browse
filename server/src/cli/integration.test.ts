@@ -110,3 +110,30 @@ describe('CLI stdout/stderr separation', () => {
     expect(stderr).toContain('[CLI]');
   });
 });
+
+describe('Binary consolidation (hanzi-browse dispatches subcommands to CLI)', () => {
+  const INDEX = join(__dirname, '..', '..', 'dist', 'index.js');
+
+  async function runIndex(args: string[], timeoutMs = 3000): Promise<{ code: number; stdout: string; stderr: string }> {
+    return new Promise((resolve) => {
+      const p = spawn('node', [INDEX, ...args]);
+      let stdout = '', stderr = '';
+      p.stdout.on('data', (d: Buffer) => stdout += d);
+      p.stderr.on('data', (d: Buffer) => stderr += d);
+      const t = setTimeout(() => p.kill(), timeoutMs); // MCP stdio mode waits forever
+      p.on('close', (code: number | null) => { clearTimeout(t); resolve({ code: code ?? -1, stdout, stderr }); });
+    });
+  }
+
+  it('hanzi-browse help routes to CLI help', async () => {
+    const { stdout, code } = await runIndex(['help']);
+    expect(stdout).toContain('Hanzi Browser CLI'); // heading in cmdHelp today
+    expect(code).toBe(0);
+  });
+
+  it('hanzi-browse with no args enters MCP stdio mode (no CLI banner)', async () => {
+    const { stdout, stderr } = await runIndex([]);
+    // CLI help banner starts with "Hanzi Browser CLI"; MCP mode should NOT emit that to stdout.
+    expect(stdout).not.toContain('Hanzi Browser CLI');
+  });
+});
