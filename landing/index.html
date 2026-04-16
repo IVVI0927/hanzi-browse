@@ -7,22 +7,22 @@
     <link rel="preconnect" href="https://www.googletagmanager.com">
     <link rel="preconnect" href="https://www.youtube.com">
     <link rel="preconnect" href="https://i.ytimg.com" crossorigin>
-    <title>Hanzi — Browser automation for Claude Code, Cursor & Codex</title>
+    <title>Hanzi Browse — Browser automation for Claude Code, Cursor & Codex</title>
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-C8MZTXW947"></script>
     <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','G-C8MZTXW947');</script>
-    <meta name="description" content="Hanzi gives your AI agent (Claude Code, Cursor, Codex) a real signed-in browser. Automate browser tasks, test apps, prospect on LinkedIn. Free to start.">
+    <meta name="description" content="Hanzi Browse gives your AI agent (Claude Code, Cursor, Codex) a real signed-in browser. Automate browser tasks, test apps, prospect on LinkedIn. Free to start.">
     <link rel="canonical" href="https://browse.hanzilla.co/">
 
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
 
-    <meta property="og:title" content="Hanzi — Browser automation for Claude Code, Cursor & Codex">
+    <meta property="og:title" content="Hanzi Browse — Browser automation for Claude Code, Cursor & Codex">
     <meta property="og:description" content="Give your AI agent a real browser. Test apps, post to social platforms, prospect on LinkedIn, and automate browser tasks — works with any AI agent.">
     <meta property="og:image" content="https://browse.hanzilla.co/og.png">
     <meta property="og:url" content="https://browse.hanzilla.co">
     <meta property="og:type" content="website">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Hanzi — Browser automation for Claude Code, Cursor & Codex">
+    <meta name="twitter:title" content="Hanzi Browse — Browser automation for Claude Code, Cursor & Codex">
     <meta name="twitter:description" content="Give your AI agent a real browser. Test apps, post to social platforms, prospect on LinkedIn, and automate browser tasks — works with any AI agent.">
     <meta name="twitter:image" content="https://browse.hanzilla.co/og.png">
 
@@ -30,7 +30,7 @@
     {
       "@context": "https://schema.org",
       "@type": "SoftwareApplication",
-      "name": "Hanzi",
+      "name": "Hanzi Browse",
       "description": "Browser automation tool that gives AI coding agents like Claude Code, Cursor, and Windsurf access to a real Chrome browser. One setup command, entire browser task delegated.",
       "url": "https://browse.hanzilla.co",
       "applicationCategory": "DeveloperApplication",
@@ -53,7 +53,7 @@
       ],
       "author": {
         "@type": "Organization",
-        "name": "Hanzi",
+        "name": "Hanzi Browse",
         "url": "https://browse.hanzilla.co"
       }
     }
@@ -63,7 +63,7 @@
     {
       "@context": "https://schema.org",
       "@type": "Organization",
-      "name": "Hanzi",
+      "name": "Hanzi Browse",
       "url": "https://browse.hanzilla.co",
       "logo": "https://browse.hanzilla.co/hanzi.png",
       "sameAs": [
@@ -84,10 +84,10 @@
       "mainEntity": [
         {
           "@type": "Question",
-          "name": "How is Hanzi different from Playwright, Puppeteer, or Browserbase?",
+          "name": "How is Hanzi Browse different from Playwright, Puppeteer, or Browserbase?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Those spin up a fresh, clean browser in a sandbox — you re-login, fight CAPTCHAs, maintain cookies. Hanzi attaches to your existing Chrome via the DevTools Protocol, so sites see the session you're already logged into: Gmail, LinkedIn, your bank, your company's admin tools. No login automation, no session replay, no detection arms race."
+            "text": "Those spin up a fresh, clean browser in a sandbox — you re-login, fight CAPTCHAs, maintain cookies. Hanzi Browse attaches to your existing Chrome via the DevTools Protocol, so sites see the session you're already logged into: Gmail, LinkedIn, your bank, your company's admin tools. No login automation, no session replay, no detection arms race."
           }
         },
         {
@@ -95,20 +95,20 @@
           "name": "Do I need a new API key, or can I reuse my Claude Pro or ChatGPT Plus subscription?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Reuse what you already pay for. In BYOM mode, Hanzi reads credentials from Claude Code's OAuth, Codex's auth.json, the macOS Keychain, or a plain API key — whichever you have. If you already pay for Claude Pro/Max or GPT Plus, it's effectively free. No extra billing."
+            "text": "Reuse what you already pay for. In BYOM mode, Hanzi Browse reads credentials from Claude Code's OAuth, Codex's auth.json, the macOS Keychain, or a plain API key — whichever you have. If you already pay for Claude Pro/Max or GPT Plus, it's effectively free. No extra billing."
           }
         },
         {
           "@type": "Question",
-          "name": "Does my browsing data go to Hanzi's servers?",
+          "name": "Does my browsing data go to Hanzi Browse's servers?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Depends on the mode. BYOM: nothing touches Hanzi servers — screenshots go directly from your machine to the AI provider you picked. Managed: pages and screenshots are processed by Google Vertex AI (Gemini) and not retained beyond the task. Hanzi never tracks browsing outside active tasks and doesn't sell data."
+            "text": "Depends on the mode. BYOM: nothing touches Hanzi Browse servers — screenshots go directly from your machine to the AI provider you picked. Managed: pages and screenshots are processed by Google Vertex AI (Gemini) and not retained beyond the task. Hanzi Browse never tracks browsing outside active tasks and doesn't sell data."
           }
         },
         {
           "@type": "Question",
-          "name": "Can I embed Hanzi in my own product?",
+          "name": "Can I embed Hanzi Browse in my own product?",
           "acceptedAnswer": {
             "@type": "Answer",
             "text": "Yes. There's a REST API and a TypeScript SDK (@hanzi-browse/sdk). Your user pairs their browser once via a pairing link, then your backend calls client.runTask(...) against their session. Billing is $0.05 per completed task — errors and timeouts are always free."
@@ -1026,7 +1026,7 @@
                     <rect width="24" height="24" rx="6" fill="#1f1711"/>
                     <path d="M7 7v10M17 7v10M7 12h10" stroke="#fffdf8" stroke-width="2.5" stroke-linecap="round"/>
                 </svg>
-                Hanzi
+                Hanzi Browse
             </a>
             <nav class="header-links" aria-label="Main navigation">
                 <a class="link-pill" href="#free-tools">Free tools</a>
@@ -1043,7 +1043,7 @@
             <section class="hero">
                 <div class="hero-copy">
                     <h1>Give your AI agent a real browser.</h1>
-                    <p>Your agent stops when it needs a browser. <strong>Hanzi gives it a browser sub-agent</strong> — one command to install, pre-loaded site knowledge, your context stays free for code.</p>
+                    <p>Your agent stops when it needs a browser. <strong>Hanzi Browse gives it a browser sub-agent</strong> — one command to install, pre-loaded site knowledge, your context stays free for code.</p>
                     <div class="hero-actions">
                         <a class="btn btn-green" href="#use-hanzi">Get started — it's free</a>
                         <button class="btn btn-signin-hero" onclick="hanziSignIn()">Sign in &rarr;</button>
@@ -1052,7 +1052,7 @@
 
                 <div class="demo-panel">
                     <div class="video-facade" style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 24px; cursor: pointer;" onclick="loadVideo(this)" role="button" tabindex="0" aria-label="Play demo video" onkeydown="if(event.key==='Enter')loadVideo(this)">
-                        <img src="https://img.youtube.com/vi/3tHzg2ps-9w/maxresdefault.jpg" alt="Hanzi demo video thumbnail" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;" loading="lazy">
+                        <img src="https://img.youtube.com/vi/3tHzg2ps-9w/maxresdefault.jpg" alt="Hanzi Browse demo video thumbnail" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;" loading="lazy">
                         <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.15);">
                             <svg width="68" height="68" viewBox="0 0 68 68" fill="none"><circle cx="34" cy="34" r="34" fill="rgba(0,0,0,0.6)"/><polygon points="28,22 28,46 48,34" fill="white"/></svg>
                         </div>
@@ -1074,13 +1074,13 @@
             </div>
 
             <!-- Two tracks -->
-            <section class="two-tracks" aria-label="Two ways to use Hanzi">
+            <section class="two-tracks" aria-label="Two ways to use Hanzi Browse">
                 <a class="track-card green" href="#use-hanzi" style="display: block; text-decoration: none; color: inherit;">
                     <div class="kicker">For your agent</div>
                     <h3>A browser sub-agent for your coding agent.</h3>
                     <p class="sub">One command installs it. Your agent delegates browser work — clicking, reading, filling forms in your real signed-in Chrome — and keeps its context free for code.</p>
                     <ul class="proofs">
-                        <li><strong>One command setup.</strong> Detects every agent on your machine and wires Hanzi into each one's MCP config.</li>
+                        <li><strong>One command setup.</strong> Detects every agent on your machine and wires Hanzi Browse into each one's MCP config.</li>
                         <li><strong>Site knowledge built in.</strong> Verified playbooks for 20+ sites so tasks actually succeed.</li>
                         <li><strong>Offloads the browser, not your context.</strong> A sub-agent handles the browsing loop and returns a clean answer.</li>
                     </ul>
@@ -1100,7 +1100,7 @@
                 </a>
             </section>
 
-            <!-- Use Hanzi -->
+            <!-- Use Hanzi Browse -->
             <section class="section" id="use-hanzi">
                 <div class="section-head">
                     <div>
@@ -1172,7 +1172,7 @@
                 </div>
             </section>
 
-            <!-- Build with Hanzi -->
+            <!-- Build with Hanzi Browse -->
             <section class="section" id="build-with-hanzi">
                 <div class="section-head">
                     <div>
@@ -1308,19 +1308,19 @@ console.log(result.answer);</pre>
                 </div>
                 <div class="faq-list">
                     <details class="faq-item">
-                        <summary>How is Hanzi different from Playwright, Puppeteer, or Browserbase?</summary>
-                        <div class="faq-body">Those spin up a fresh, clean browser in a sandbox — you re-login, fight CAPTCHAs, maintain cookies. Hanzi attaches to your <em>existing</em> Chrome via the DevTools Protocol, so sites see the session you're already logged into: Gmail, LinkedIn, your bank, your company's admin tools. No login automation, no session replay, no detection arms race.</div>
+                        <summary>How is Hanzi Browse different from Playwright, Puppeteer, or Browserbase?</summary>
+                        <div class="faq-body">Those spin up a fresh, clean browser in a sandbox — you re-login, fight CAPTCHAs, maintain cookies. Hanzi Browse attaches to your <em>existing</em> Chrome via the DevTools Protocol, so sites see the session you're already logged into: Gmail, LinkedIn, your bank, your company's admin tools. No login automation, no session replay, no detection arms race.</div>
                     </details>
                     <details class="faq-item">
                         <summary>Do I need a new API key, or can I reuse my Claude Pro / ChatGPT Plus subscription?</summary>
-                        <div class="faq-body">Reuse what you already pay for. In BYOM mode, Hanzi reads credentials from Claude Code's OAuth, Codex's <code>auth.json</code>, the macOS Keychain, or a plain API key — whichever you have. If you already pay for Claude Pro/Max or GPT Plus, it's effectively free. No extra billing.</div>
+                        <div class="faq-body">Reuse what you already pay for. In BYOM mode, Hanzi Browse reads credentials from Claude Code's OAuth, Codex's <code>auth.json</code>, the macOS Keychain, or a plain API key — whichever you have. If you already pay for Claude Pro/Max or GPT Plus, it's effectively free. No extra billing.</div>
                     </details>
                     <details class="faq-item">
-                        <summary>Does my browsing data go to Hanzi's servers?</summary>
-                        <div class="faq-body">Depends on the mode. <strong>BYOM:</strong> nothing touches Hanzi servers — screenshots go directly from your machine to the AI provider you picked. <strong>Managed:</strong> pages and screenshots are processed by Google Vertex AI (Gemini) and not retained beyond the task. Hanzi never tracks browsing outside active tasks and doesn't sell data.</div>
+                        <summary>Does my browsing data go to Hanzi Browse's servers?</summary>
+                        <div class="faq-body">Depends on the mode. <strong>BYOM:</strong> nothing touches Hanzi Browse servers — screenshots go directly from your machine to the AI provider you picked. <strong>Managed:</strong> pages and screenshots are processed by Google Vertex AI (Gemini) and not retained beyond the task. Hanzi Browse never tracks browsing outside active tasks and doesn't sell data.</div>
                     </details>
                     <details class="faq-item">
-                        <summary>Can I embed Hanzi in my own product?</summary>
+                        <summary>Can I embed Hanzi Browse in my own product?</summary>
                         <div class="faq-body">Yes. There's a REST API and a TypeScript SDK (<code>@hanzi-browse/sdk</code>). Your user pairs their browser once via a pairing link, then your backend calls <code>client.runTask(...)</code> against their session. Billing is $0.05 per completed task — errors and timeouts are always free.</div>
                     </details>
                 </div>
@@ -1332,7 +1332,7 @@ console.log(result.answer);</pre>
                     <div>
                         <div class="section-kicker">Start here</div>
                         <h2>One command. Real browser.</h2>
-                        <p>Or <a href="docs.html#build-with-hanzi" style="color: var(--purple); font-weight: 700;">read the developer guide</a> to embed Hanzi in your product.</p>
+                        <p>Or <a href="docs.html#build-with-hanzi" style="color: var(--purple); font-weight: 700;">read the developer guide</a> to embed Hanzi Browse in your product.</p>
                     </div>
                     <div class="setup-copy">
                         <pre>npx hanzi-browse setup</pre>
@@ -1428,7 +1428,7 @@ console.log(result.answer);</pre>
         }
 
         function loadVideo(el) {
-            el.innerHTML = '<iframe src="https://www.youtube.com/embed/3tHzg2ps-9w?autoplay=1" title="Hanzi demo" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>';
+            el.innerHTML = '<iframe src="https://www.youtube.com/embed/3tHzg2ps-9w?autoplay=1" title="Hanzi Browse demo" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>';
             el.style.cursor = 'default';
             el.removeAttribute('onclick');
             el.removeAttribute('onkeydown');

@@ -36,13 +36,13 @@ reads authenticated pages — in your real signed-in browser.
 
 <br/>
 
-## Two ways to use Hanzi
+## Two ways to use Hanzi Browse
 
 Same engine underneath. Different audience, different install path.
 
 ### Use it — a browser sub-agent for your coding agent
 
-One command. `npx hanzi-browse setup` detects every AI agent on your machine (Claude Code, Cursor, Codex, and 9 more) and wires Hanzi in as an MCP tool. Your main agent stays focused on code; Hanzi handles the browser loop — with verified playbooks for 20+ sites so tasks actually succeed.
+One command. `npx hanzi-browse setup` detects every AI agent on your machine (Claude Code, Cursor, Codex, and 9 more) and wires Hanzi Browse in as an MCP tool. Your main agent stays focused on code; Hanzi Browse handles the browser loop — with verified playbooks for 20+ sites so tasks actually succeed.
 
 ![Use it now](docs/diagrams/use-it.svg)
 
@@ -100,9 +100,9 @@ npx hanzi-browse setup
 
 Hanzi Browse has two distribution channels. Both use the same browser automation engine and site domain knowledge:
 
-**Skills** — for users who run Hanzi locally through their AI agent. The setup wizard installs skills directly into your agent (Claude Code, Cursor, etc.). Each skill teaches the agent *when* and *how* to use the browser for a specific workflow.
+**Skills** — for users who run Hanzi Browse locally through their AI agent. The setup wizard installs skills directly into your agent (Claude Code, Cursor, etc.). Each skill teaches the agent *when* and *how* to use the browser for a specific workflow.
 
-**Free Tools** — hosted web apps that anyone can try without installing anything. Each tool is a standalone app built on the Hanzi API that demonstrates a use case. Every skill can become a free tool.
+**Free Tools** — hosted web apps that anyone can try without installing anything. Each tool is a standalone app built on the Hanzi Browse API that demonstrates a use case. Every skill can become a free tool.
 
 ### Skills
 
@@ -138,7 +138,7 @@ All patterns live in [`server/src/agent/domain-skills.json`](server/src/agent/do
 
 ## Build with Hanzi Browse
 
-Embed browser automation in your product. Your app calls the Hanzi API, a real browser executes the task, you get the result back.
+Embed browser automation in your product. Your app calls the Hanzi Browse API, a real browser executes the task, you get the result back.
 
 1. **Get an API key** — [sign in](https://api.hanzilla.co/dashboard) to your developer console, then create a key
 2. **Pair a browser** — create a pairing token, send your user a pairing link (`/pair/{token}`) — they click it and auto-pair
@@ -182,7 +182,7 @@ console.log(result.answer);
 |--|---------|------|
 | **Price** | $0.05/task (20 free/month) | Free forever |
 | **AI model** | We handle it (Gemini) | Your own key |
-| **Data** | Processed on Hanzi servers | Never leaves your machine |
+| **Data** | Processed on Hanzi Browse servers | Never leaves your machine |
 | **Billing** | Only completed tasks. Errors are free. | N/A |
 
 Building a product? [Contact us](mailto:hanzili0217@gmail.com?subject=Partner%20pricing) for volume pricing.
@@ -323,10 +323,10 @@ Good first contributions: new skills, landing pages, site-pattern files, platfor
 
 ## Privacy
 
-Hanzi operates in different modes with different data handling. [Read the privacy policy](PRIVACY.md).
+Hanzi Browse operates in different modes with different data handling. [Read the privacy policy](PRIVACY.md).
 
-- **BYOM**: No data sent to Hanzi servers. Screenshots go to your chosen AI provider only.
-- **Managed / API**: Task data processed on Hanzi servers via Google Vertex AI.
+- **BYOM**: No data sent to Hanzi Browse servers. Screenshots go to your chosen AI provider only.
+- **Managed / API**: Task data processed on Hanzi Browse servers via Google Vertex AI.
 
 <br/>
 
