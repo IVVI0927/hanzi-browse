@@ -145,6 +145,27 @@ export function listActiveSessions(): SessionFileStatus[] {
   );
 }
 
+export const SESSION_TTL_MS = Number(process.env.HANZI_SESSION_TTL_MS) || 7 * 24 * 3600_000; // 7 days
+
+export function pruneOldSessions(): string[] {
+  ensureSessionDir();
+  const cutoff = Date.now() - SESSION_TTL_MS;
+  const removed: string[] = [];
+  for (const f of readdirSync(SESSION_DIR)) {
+    if (!f.endsWith('.json')) continue;
+    const sessionId = f.replace(/\.json$/, '');
+    const s = readSessionStatus(sessionId);
+    if (!s) continue;
+    // Only prune terminal states
+    if (s.status !== 'complete' && s.status !== 'error' && s.status !== 'stopped') continue;
+    if (new Date(s.updated_at).getTime() < cutoff) {
+      deleteSessionFiles(sessionId);
+      removed.push(sessionId);
+    }
+  }
+  return removed;
+}
+
 export function deleteSessionFiles(sessionId: string): boolean {
   const statusPath = getSessionFilePath(sessionId);
   const logPath = getSessionLogPath(sessionId);

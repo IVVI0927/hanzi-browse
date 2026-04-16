@@ -32,6 +32,7 @@ import {
   deleteSessionFiles,
   getSessionLogPath,
   getSessionScreenshotPath,
+  pruneOldSessions,
   type SessionFileStatus,
 } from './cli/session-files.js';
 import {
@@ -283,6 +284,7 @@ function cmdStatus(): void {
     }
     console.log(JSON.stringify(buildStatusPayload(status), jsonOutput ? undefined : null, jsonOutput ? undefined : 2));
   } else {
+    pruneOldSessions(); // opportunistic cleanup
     const allSessions = listSessions();
     if (jsonOutput) {
       console.log(JSON.stringify(buildStatusPayload(allSessions)));
