@@ -260,6 +260,19 @@ async function cmdStart(): Promise<void> {
       if (!quietMode) console.error(`\n[CLI] Task ${result.status} after ${result.steps} steps`);
       console.log(result.answer);
     }
+    if (!quietMode && !jsonOutput && result.status === 'complete') {
+      try {
+        const { getBillingStatus, MANAGED_DASHBOARD_URL: dashUrl } = await import('./cli/managed-client.js');
+        const bal = await getBillingStatus();
+        if (bal) {
+          const total = bal.free_remaining + bal.credit_balance;
+          console.error(`  [managed] ${bal.free_remaining} free + ${bal.credit_balance} credits remaining (${total} tasks). Top up: ${dashUrl}`);
+          if (total <= 3) {
+            console.error(`  ⚠️  Low balance — add credits soon.`);
+          }
+        }
+      } catch { /* non-critical */ }
+    }
     const code = result.status === 'complete' ? EXIT_OK
       : result.status === 'timeout' ? EXIT_TIMEOUT
       : EXIT_TASK_ERROR;
@@ -557,7 +570,8 @@ async function cmdDoctor(): Promise<void> {
     console.log(renderDoctorReport(report));
   }
   // Exit non-zero if anything critical is off
-  const ok = report.relayReachable && report.credentials.length > 0;
+  const billingOk = report.billing === null || report.billing.free_remaining + report.billing.credit_balance > 0;
+  const ok = report.relayReachable && report.credentials.length > 0 && billingOk;
   process.exit(ok ? EXIT_OK : EXIT_CLI_ERROR);
 }
 

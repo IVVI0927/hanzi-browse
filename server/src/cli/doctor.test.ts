@@ -11,6 +11,7 @@ describe('renderDoctorReport', () => {
         { session_id: 'abc', status: 'complete', task: 'find jobs', started_at: '2026-04-16', updated_at: '2026-04-16' },
       ],
       apiReachable: true,
+      billing: null,
     };
     const out = renderDoctorReport(report);
     expect(out).toContain('✓');
@@ -23,9 +24,32 @@ describe('renderDoctorReport', () => {
     const report: DoctorReport = {
       extensionConnected: true, relayReachable: true,
       credentials: [], recentSessions: [], apiReachable: true,
+      billing: null,
     };
     const out = renderDoctorReport(report);
     expect(out).toContain('✗');
     expect(out.toLowerCase()).toContain('no credentials');
+  });
+
+  it('renders billing when present with low-balance warning', () => {
+    const report: DoctorReport = {
+      extensionConnected: true, relayReachable: true,
+      credentials: [], recentSessions: [], apiReachable: true,
+      billing: { free_remaining: 2, credit_balance: 0, free_tasks_per_month: 20 },
+    };
+    const out = renderDoctorReport(report);
+    expect(out).toContain('Managed tasks available');
+    expect(out.toLowerCase()).toContain('low');
+    expect(out).toContain('dashboard'); // URL includes /dashboard
+  });
+
+  it('renders out-of-credits warning when balance is zero', () => {
+    const report: DoctorReport = {
+      extensionConnected: true, relayReachable: true,
+      credentials: [], recentSessions: [], apiReachable: true,
+      billing: { free_remaining: 0, credit_balance: 0, free_tasks_per_month: 20 },
+    };
+    const out = renderDoctorReport(report);
+    expect(out.toLowerCase()).toContain('out of credits');
   });
 });

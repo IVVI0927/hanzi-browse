@@ -20,6 +20,7 @@ import {
   checkCredentialFlowResult,
   type DetectOptions,
 } from './detect-credentials.js';
+import { MANAGED_DASHBOARD_URL } from './managed-client.js';
 import { initTelemetry, trackEvent, shutdownTelemetry } from '../telemetry.js';
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -652,7 +653,6 @@ async function promptAccessMode(isInteractive: boolean): Promise<AccessMode> {
 
 // ── Managed access ──────────────────────────────────────────────────
 
-const MANAGED_DASHBOARD_URL = 'https://api.hanzilla.co/dashboard';
 const MANAGED_SIGNIN_URL = 'https://api.hanzilla.co/api/auth/sign-in/social';
 
 let managedApiKey: string | null = null;
@@ -687,6 +687,10 @@ async function handleManagedAccess(): Promise<void> {
     if (res.ok && data.free_remaining !== undefined) {
       managedApiKey = trimmed;
       console.log(`\n  ${c.green('✓')}  Key validated! ${data.free_remaining} free tasks + ${data.credit_balance || 0} credits available.`);
+      if (data.free_remaining <= 3 && (data.credit_balance || 0) === 0) {
+        console.log(`  ${c.yellow('●')}  Low balance: ${data.free_remaining}/${data.free_tasks_per_month} free tasks remaining, no paid credits.`);
+        console.log(`     Add credits at ${c.cyan(MANAGED_DASHBOARD_URL)} before heavy use.`);
+      }
       await attemptManagedPair(trimmed);
     } else {
       console.log(`\n  ${c.red('✗')}  Invalid key: ${data.error || 'authentication failed'}`);
@@ -1229,6 +1233,10 @@ export async function runSetup(options: { only?: string; yes?: boolean; all?: bo
       if (res.ok && data.free_remaining !== undefined) {
         managedApiKey = options.apiKey;
         log(`  ✓  Managed key validated (${data.free_remaining} free tasks remaining)`);
+        if (data.free_remaining <= 3 && (data.credit_balance || 0) === 0) {
+          log(`  ●  Low balance: ${data.free_remaining}/${data.free_tasks_per_month} free tasks remaining, no paid credits.`);
+          log(`     Add credits at ${MANAGED_DASHBOARD_URL} before heavy use.`);
+        }
       } else {
         log(`  ✗  Invalid API key: ${data.error || 'authentication failed'}`);
         trackEvent("setup_failed", { error_category: "invalid_api_key" });

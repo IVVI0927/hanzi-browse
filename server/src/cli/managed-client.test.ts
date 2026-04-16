@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { createServer, type Server } from 'http';
 import type { AddressInfo } from 'net';
-import { managedApiCall, runManagedTask } from './managed-client.js';
+import { managedApiCall, runManagedTask, getBillingStatus } from './managed-client.js';
 
 describe('managed-client', () => {
   let server: Server;
@@ -104,5 +104,35 @@ describe('managed-client', () => {
     nextResponses.push({ status: 401, body: { error: 'Invalid API key' } });
     const { createPairingToken } = await import('./managed-client.js');
     await expect(createPairingToken({ apiUrl: `http://127.0.0.1:${port}`, apiKey: 'bad' })).rejects.toThrow(/Pairing failed/);
+  });
+
+  it('runManagedTask returns credits_exhausted error on HTTP 402', async () => {
+    nextResponses.push({ status: 200, body: { sessions: [{ id: 'sess1', status: 'connected' }] } });
+    nextResponses.push({ status: 402, body: { error: 'No free tasks remaining', free_remaining: 0, credit_balance: 0 } });
+
+    const r = await runManagedTask('test', undefined, undefined, 5000, { apiUrl: `http://127.0.0.1:${port}`, apiKey: 'test-key' });
+
+    expect(r.status).toBe('error');
+    expect(r.error).toBe('credits_exhausted');
+    expect(r.answer).toMatch(/Free remaining: 0/);
+    expect(r.answer).toMatch(/Add credits at/);
+  });
+
+  it('runManagedTask returns rate_limited error on HTTP 429', async () => {
+    nextResponses.push({ status: 200, body: { sessions: [{ id: 'sess1', status: 'connected' }] } });
+    nextResponses.push({ status: 429, body: { error: 'Rate limit exceeded. Max 10 tasks per minute.' } });
+
+    const r = await runManagedTask('test', undefined, undefined, 5000, { apiUrl: `http://127.0.0.1:${port}`, apiKey: 'test-key' });
+
+    expect(r.status).toBe('error');
+    expect(r.error).toBe('rate_limited');
+    expect(r.answer).toMatch(/Rate limit/);
+  });
+
+  it('getBillingStatus returns balance', async () => {
+    nextResponses.push({ status: 200, body: { free_remaining: 15, credit_balance: 5, free_tasks_per_month: 20 } });
+    const b = await getBillingStatus({ apiUrl: `http://127.0.0.1:${port}`, apiKey: 'test-key' });
+    expect(b?.free_remaining).toBe(15);
+    expect(b?.credit_balance).toBe(5);
   });
 });
