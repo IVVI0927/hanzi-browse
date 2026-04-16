@@ -5,7 +5,7 @@
  * Sessions are stored as JSON files in ~/.hanzi-browse/sessions/
  */
 
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, appendFileSync, unlinkSync } from 'fs';
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, appendFileSync, unlinkSync, renameSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 
@@ -62,7 +62,11 @@ export function writeSessionStatus(sessionId: string, status: Partial<SessionFil
     updated_at: new Date().toISOString(),
   };
 
-  writeFileSync(filePath, JSON.stringify(updated, null, 2));
+  // Atomic write: write to .tmp + rename. rename(2) on the same filesystem is atomic;
+  // readers see either the old file or the new one — never a torn partial write.
+  const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+  writeFileSync(tmpPath, JSON.stringify(updated, null, 2));
+  renameSync(tmpPath, filePath);
 }
 
 function createInitialStatus(sessionId: string): SessionFileStatus {
