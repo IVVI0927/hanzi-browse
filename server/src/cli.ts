@@ -23,6 +23,7 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { WebSocketClient } from './ipc/websocket-client.js';
 import { EXIT_OK, EXIT_TASK_ERROR, EXIT_CLI_ERROR, EXIT_TIMEOUT } from './cli/exit-codes.js';
+import { parseDuration } from './cli/arg-parser.js';
 import {
   writeSessionStatus,
   readSessionStatus,
@@ -173,11 +174,19 @@ async function cmdStart(): Promise<void> {
   let url: string | undefined;
   let context: string | undefined;
   let skill: string | undefined;
+  let timeoutMs = 5 * 60 * 1000; // default 5 min
 
   for (let i = 2; i < args.length; i++) {
     if (args[i] === '--url' || args[i] === '-u') url = args[++i];
     else if (args[i] === '--context' || args[i] === '-c') context = args[++i];
     else if (args[i] === '--skill' || args[i] === '-s') skill = args[++i];
+    else if (args[i] === '--timeout' || args[i] === '-t') {
+      try { timeoutMs = parseDuration(args[++i]); }
+      catch (e: any) {
+        console.error(`Invalid --timeout: ${e.message}`);
+        process.exit(EXIT_CLI_ERROR);
+      }
+    }
   }
 
   // Inject skill prompt as context
@@ -230,7 +239,7 @@ async function cmdStart(): Promise<void> {
   }
 
   // Block until task completes
-  const outcome = await waitForTaskCompletion();
+  const outcome = await waitForTaskCompletion(timeoutMs);
   disconnectAndExit(outcomeToExitCode(outcome));
 }
 
@@ -263,9 +272,20 @@ function cmdStatus(): void {
 async function cmdMessage(): Promise<void> {
   const sessionId = args[1];
   const message = args[2];
+  let timeoutMs = 5 * 60 * 1000;
+
+  for (let i = 3; i < args.length; i++) {
+    if (args[i] === '--timeout' || args[i] === '-t') {
+      try { timeoutMs = parseDuration(args[++i]); }
+      catch (e: any) {
+        console.error(`Invalid --timeout: ${e.message}`);
+        process.exit(EXIT_CLI_ERROR);
+      }
+    }
+  }
 
   if (!sessionId || !message) {
-    console.error('Usage: hanzi-browser message <session_id> "message"');
+    console.error('Usage: hanzi-browser message <session_id> "message" [--timeout 5m]');
     process.exit(EXIT_CLI_ERROR);
   }
 
@@ -273,9 +293,9 @@ async function cmdMessage(): Promise<void> {
   await initConnection();
   await connection.send({ type: 'mcp_send_message', sessionId, message });
   appendSessionLog(sessionId, `[USER] ${message}`);
-  console.log(`Message sent to session ${sessionId}`);
-  console.log('Waiting for completion...\n');
-  const outcome = await waitForTaskCompletion();
+  console.error(`Message sent to session ${sessionId}`);
+  console.error('Waiting for completion...\n');
+  const outcome = await waitForTaskCompletion(timeoutMs);
   disconnectAndExit(outcomeToExitCode(outcome));
 }
 

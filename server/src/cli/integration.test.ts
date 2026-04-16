@@ -151,3 +151,23 @@ describe('--version', () => {
     expect(code).toBe(0);
   });
 });
+
+describe('--timeout', () => {
+  let relay: MockRelay;
+  beforeAll(async () => { relay = await MockRelay.start(); });
+  afterAll(async () => { await relay.stop(); });
+
+  it('exits 3 (timeout) after the specified duration', async () => {
+    // No task_complete emitted — relay stays silent, CLI should time out.
+    const started = Date.now();
+    const { code, stderr } = await runCli(
+      ['start', 'slow task', '--timeout', '1s'],
+      { HANZI_RELAY_URL: `ws://127.0.0.1:${relay.port}` },
+    );
+    const elapsed = Date.now() - started;
+    expect(code).toBe(3);
+    expect(stderr).toMatch(/timed out/i);
+    expect(elapsed).toBeGreaterThan(900);
+    expect(elapsed).toBeLessThan(3500);
+  });
+});
