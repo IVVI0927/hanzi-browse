@@ -15,12 +15,13 @@
  *   hanzi-browser screenshot <session_id>
  */
 
-import { existsSync, readFileSync, mkdirSync, watch, writeFileSync } from 'fs';
+import { existsSync, readFileSync, mkdirSync, watch, writeFileSync, copyFileSync, readdirSync } from 'fs';
 import { randomUUID } from 'crypto';
 import { join } from 'path';
 
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import { discoverBundledSkills, type SkillMeta } from './cli/skills-discovery.js';
 import { WebSocketClient } from './ipc/websocket-client.js';
 import { EXIT_OK, EXIT_TASK_ERROR, EXIT_CLI_ERROR, EXIT_TIMEOUT } from './cli/exit-codes.js';
 import { parseDuration } from './cli/arg-parser.js';
@@ -165,13 +166,11 @@ function disconnectAndExit(code = EXIT_OK): void {
 // --- Commands ---
 
 function loadSkillPrompt(skillName: string): string | null {
-  // Resolve relative to package root: dist/cli.js → ../skills/<name>/SKILL.md
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = dirname(__filename);
-  const skillPath = join(__dirname, '..', 'skills', skillName, 'SKILL.md');
-  if (!existsSync(skillPath)) return null;
-  const content = readFileSync(skillPath, 'utf-8');
-  // Strip frontmatter
+  const skill = discoverBundledSkills().find(s => s.name === skillName);
+  if (!skill) return null;
+  const mdPath = join(skill.path, 'SKILL.md');
+  if (!existsSync(mdPath)) return null;
+  const content = readFileSync(mdPath, 'utf-8');
   return content.replace(/^---[\s\S]*?---\n*/m, '').trim();
 }
 
@@ -213,8 +212,9 @@ async function cmdStart(): Promise<void> {
   if (skill) {
     const skillPrompt = loadSkillPrompt(skill);
     if (!skillPrompt) {
+      const available = discoverBundledSkills().map(s => s.name).join(', ');
       console.error(`Unknown skill: ${skill}`);
-      console.error(`Available: ${SKILL_REGISTRY.map(s => s.name).join(', ')}`);
+      console.error(`Available: ${available}`);
       process.exit(EXIT_CLI_ERROR);
     }
     context = context
@@ -431,73 +431,41 @@ async function cmdScreenshot(): Promise<void> {
 
 const SKILLS_BASE_URL = 'https://raw.githubusercontent.com/hanzili/hanzi-browse/main/server/skills';
 
-const SKILL_REGISTRY = [
-  {
-    name: 'linkedin-prospector',
-    description: 'Find people on LinkedIn and send personalized connection requests',
-    files: ['SKILL.md'],
-  },
-  {
-    name: 'e2e-tester',
-    description: 'Test your web app in a real browser — reports bugs with code references',
-    files: ['SKILL.md'],
-  },
-  {
-    name: 'social-poster',
-    description: 'Post across LinkedIn, Twitter, Reddit, HN — drafts per-platform, posts from your browser',
-    files: ['SKILL.md'],
-  },
-];
-
 async function cmdSkills(): Promise<void> {
+  const skills = discoverBundledSkills();
   const subcommand = args[1];
 
   if (subcommand === 'install') {
     const skillName = args[2];
     if (!skillName) {
-      console.error('Usage: hanzi-browser skills install <name>');
+      console.error('Usage: hanzi-browse skills install <name>');
       process.exit(EXIT_CLI_ERROR);
     }
-
-    const skill = SKILL_REGISTRY.find(s => s.name === skillName);
+    const skill = skills.find(s => s.name === skillName);
     if (!skill) {
       console.error(`Unknown skill: ${skillName}`);
-      console.error(`Available: ${SKILL_REGISTRY.map(s => s.name).join(', ')}`);
+      console.error(`Available: ${skills.map(s => s.name).join(', ')}`);
       process.exit(EXIT_CLI_ERROR);
     }
-
-    // Detect the right directory
-    const targetDir = detectSkillsDir(skillName);
-    mkdirSync(targetDir, { recursive: true });
-
-    console.log(`Installing ${skillName}...`);
-
-    for (const file of skill.files) {
-      const url = `${SKILLS_BASE_URL}/${skillName}/${file}`;
-      try {
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const content = await response.text();
-        const filePath = join(targetDir, file);
-        writeFileSync(filePath, content);
-        console.log(`  → ${filePath}`);
-      } catch (err: any) {
-        console.error(`  Failed to download ${file}: ${err.message}`);
-        process.exit(EXIT_CLI_ERROR);
-      }
-    }
-
-    console.log(`\nDone! "${skillName}" is ready to use.`);
+    await installSkillFromLocal(skill);
     return;
   }
 
-  // Default: list available skills
   console.log('\nAvailable skills:\n');
-  for (const skill of SKILL_REGISTRY) {
-    console.log(`  ${skill.name.padEnd(24)} ${skill.description}`);
+  for (const skill of skills) {
+    console.log(`  ${skill.name.padEnd(28)} [${skill.category}] ${skill.description.slice(0, 80)}`);
   }
-  console.log(`\nInstall: hanzi-browser skills install <name>`);
+  console.log(`\nInstall: hanzi-browse skills install <name>`);
   console.log(`Browse:  https://browse.hanzilla.co/skills\n`);
+}
+
+async function installSkillFromLocal(skill: SkillMeta): Promise<void> {
+  const targetDir = detectSkillsDir(skill.name);
+  mkdirSync(targetDir, { recursive: true });
+  for (const file of readdirSync(skill.path)) {
+    try { copyFileSync(join(skill.path, file), join(targetDir, file)); } catch {}
+  }
+  console.log(`Installed ${skill.name} (bundled) → ${targetDir}`);
 }
 
 function detectSkillsDir(skillName: string): string {

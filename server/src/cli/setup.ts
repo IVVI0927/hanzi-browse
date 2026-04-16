@@ -6,6 +6,7 @@
  */
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync, copyFileSync, readdirSync, cpSync } from 'fs';
+import { discoverBundledSkills as discoverSkills, type SkillCategory, type SkillMeta } from './skills-discovery.js';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { homedir, platform } from 'os';
@@ -860,17 +861,6 @@ function disconnectRelay(): void {
 
 // ── Skill installation ──────────────────────────────────────────────────
 
-type SkillCategory = 'core' | 'productivity' | 'marketing' | 'life';
-
-interface SkillMeta {
-  name: string;
-  description: string;
-  category: SkillCategory;
-  path: string;
-}
-
-const VALID_CATEGORIES: readonly SkillCategory[] = ['core', 'productivity', 'marketing', 'life'];
-
 const CATEGORY_BUNDLES: Array<{
   cat: Exclude<SkillCategory, 'core'>;
   label: string;
@@ -881,53 +871,6 @@ const CATEGORY_BUNDLES: Array<{
   { cat: 'life',         label: 'Personal automation', summary: 'apartments, jobs' },
 ];
 
-function getSkillsSource(): string {
-  // Skills are bundled in the npm package at ../skills/ relative to dist/cli/
-  const fromDist = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'skills');
-  if (existsSync(fromDist)) return fromDist;
-  // Fallback: running from source at src/cli/
-  const fromSrc = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'skills');
-  return fromSrc;
-}
-
-function parseSkillFrontmatter(content: string): { description?: string; category?: SkillCategory } | null {
-  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-  if (!match) return null;
-  const result: { description?: string; category?: SkillCategory } = {};
-  for (const line of match[1].split(/\r?\n/)) {
-    const m = line.match(/^(\w+):\s*(.*)$/);
-    if (!m) continue;
-    const key = m[1];
-    const value = m[2].trim();
-    if (key === 'description') result.description = value;
-    else if (key === 'category' && (VALID_CATEGORIES as readonly string[]).includes(value)) {
-      result.category = value as SkillCategory;
-    }
-  }
-  return result;
-}
-
-function discoverSkills(skillsSource: string): SkillMeta[] {
-  if (!existsSync(skillsSource)) return [];
-  const skills: SkillMeta[] = [];
-  for (const entry of readdirSync(skillsSource, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    const skillPath = join(skillsSource, entry.name);
-    const skillMd = join(skillPath, 'SKILL.md');
-    if (!existsSync(skillMd)) continue;
-    const meta = parseSkillFrontmatter(readFileSync(skillMd, 'utf-8'));
-    if (!meta) continue;
-    skills.push({
-      name: entry.name,
-      description: meta.description || '',
-      // Skills without an explicit category default to productivity — a safe
-      // "opt-in bundle" rather than forcing everyone to get it by default.
-      category: meta.category ?? 'productivity',
-      path: skillPath,
-    });
-  }
-  return skills;
-}
 
 async function promptSkillCategories(skills: SkillMeta[]): Promise<Set<string>> {
   const selected = new Set<string>();
@@ -986,8 +929,7 @@ async function installSkills(
   isInteractive: boolean,
   options: { all?: boolean; skills?: string[] } = {},
 ): Promise<void> {
-  const skillsSource = getSkillsSource();
-  const discovered = discoverSkills(skillsSource);
+  const discovered = discoverSkills();
   if (discovered.length === 0) return;
 
   const agentsWithSkills = agents.filter(a => a.skillsDir);
