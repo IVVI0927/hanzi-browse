@@ -513,6 +513,19 @@ function detectSkillsDir(skillName: string): string {
   return join('.agents', 'skills', skillName);
 }
 
+async function cmdDoctor(): Promise<void> {
+  const { runDoctor, renderDoctorReport } = await import('./cli/doctor.js');
+  const report = await runDoctor();
+  if (jsonOutput) {
+    console.log(JSON.stringify(report, null, 2));
+  } else {
+    console.log(renderDoctorReport(report));
+  }
+  // Exit non-zero if anything critical is off
+  const ok = report.relayReachable && report.credentials.length > 0;
+  process.exit(ok ? EXIT_OK : EXIT_CLI_ERROR);
+}
+
 async function cmdSetup(): Promise<void> {
   const { runSetup } = await import('./cli/setup.js');
   let only: string | undefined;
@@ -587,6 +600,9 @@ Commands:
   skills                    List available agent skills
   skills install <name>     Download a skill into your project
 
+  doctor                    Diagnose setup (extension, credentials, API, recent sessions)
+    --json                  Output machine-readable JSON
+
   help                      Show this help message
 
 Typical workflow:
@@ -635,6 +651,7 @@ async function main(): Promise<void> {
     case 'screenshot': await cmdScreenshot(); break;
     case 'skills': await cmdSkills(); break;
     case 'setup': await cmdSetup(); break;
+    case 'doctor': await cmdDoctor(); break;
     case 'version': case '--version': case '-v': cmdVersion(); break;
     case 'help': case '--help': case '-h': case undefined: cmdHelp(); break;
     default:

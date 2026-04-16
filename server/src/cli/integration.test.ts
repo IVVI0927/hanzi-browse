@@ -267,6 +267,22 @@ describe('streaming NDJSON in --json mode', () => {
   });
 });
 
+describe('doctor command', () => {
+  it('prints the doctor report', async () => {
+    const { stdout } = await runCli(['doctor']);
+    expect(stdout).toMatch(/Chrome Extension/);
+    expect(stdout).toMatch(/Relay/);
+    expect(stdout).toMatch(/credentials/i);
+  });
+
+  it('--json outputs machine-readable report', async () => {
+    const { stdout } = await runCli(['doctor', '--json']);
+    const parsed = JSON.parse(stdout);
+    expect(typeof parsed.extensionConnected).toBe('boolean');
+    expect(Array.isArray(parsed.credentials)).toBe(true);
+  });
+});
+
 describe('--quiet / --verbose', () => {
   let relay: MockRelay;
   beforeAll(async () => { relay = await MockRelay.start(); });
