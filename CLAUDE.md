@@ -57,15 +57,37 @@ Partner app → REST API (api.hanzilla.co) → Agent loop on server → Extensio
 | `native-host/` | OAuth bridge for extension | `native-bridge.cjs` |
 | `server/dashboard/` | Web UI (Preact) | `src/App.jsx` |
 
+### Value propositions
+
+Two positioning anchors. Reuse verbatim when editing marketing copy. Source of truth: `~/.claude/projects/-Users-apple-Dev-llm-in-chrome/memory/product_two_surfaces.md`.
+
+**MCP / CLI — "For your agent"**
+A browser sub-agent for your coding agent. One command installs it. Your agent delegates browser work and keeps its context free for code.
+- One command setup (`npx hanzi-browse setup` detects 12 agents, wires each one's MCP config).
+- Site knowledge built in (21 site playbooks in `server/src/agent/domain-skills.json`).
+- Offloads the browser, not your context (main agent fires one tool call; sub-agent runs the loop; returns a clean answer).
+
+**SDK / REST API — "For your product"**
+Browser automation for your users, described in English. Your backend sends a natural-language task; your users' own Chrome runs it.
+- Describe, don't script (`runTask({ task: "…" })`).
+- Your users stay in control (they pair their own browser via a one-click link; you never touch credentials or cookies).
+- Same infra as the CLI (every playbook in `domain-skills.json` works on both tracks).
+
 ### Modes of operation
 
-**1. MCP mode (local, BYOM)** — User runs `npx hanzi-browse setup`, installs extension, their AI agent uses `browser_start` tool. LLM calls happen in the extension via the user's own API key. No data leaves their machine.
+Two product tracks sharing one infrastructure (extension + relay + LLM client).
 
-**2. Managed API mode** — Partner app calls `POST /v1/tasks` with an API key. Server runs the agent loop, sends tool executions to the extension via relay. LLM is Vertex AI (Gemini). Database: Neon Postgres.
+**1. MCP / CLI track (primary product) — agent drives the developer's own Chrome.**
+- Installed via `npx hanzi-browse setup`. User's AI agent gains 5 tools: `browser_start`, `browser_message`, `browser_status`, `browser_stop`, `browser_screenshot`.
+- BYOM (bring your own model): reads Claude Code OAuth, Codex `auth.json`, macOS Keychain, or `ANTHROPIC_API_KEY`. No data leaves the user's machine.
+- Managed: server runs the agent loop against Vertex AI (Gemini). $0.05 per completed task, 20 free/month.
+- **Standalone sidepanel** is a minor sibling of MCP: same extension, its own agent loop + native-host credential bridge. Used for direct-chat UI in Chrome's side panel.
 
-**3. Standalone sidepanel** — Direct chat UI in Chrome's side panel. User types tasks, extension executes. Uses native host for OAuth/credentials.
-
-**4. Free tools** — Public web apps (e.g. X Marketing at tools.hanzilla.co/x-marketing). Express server calls the Hanzi API. User pairs their browser via the embed widget. Demonstrates use cases, drives extension installs.
+**2. SDK / REST API track — partner drives their users' Chrome.**
+- REST API (`api.hanzilla.co`) and TypeScript SDK (`@hanzi-browse/sdk`).
+- Partner creates pairing token → sends link to end user → end user clicks → browser is connected to the partner's workspace.
+- Partner calls `runTask({ browserSessionId, task })` — server runs the agent loop, sends tool execution to the paired extension via the relay, returns result.
+- **Free tools** (e.g. `tools.hanzilla.co/x-marketing`) are SDK demos, not MCP demos. They exist to prove the SDK and drive extension installs.
 
 ### Skills
 
