@@ -138,7 +138,9 @@ export function App() {
         <SettingsTab keys={keys} loadKeys={loadKeys} setError={setError} profile={profile} credits={credits} loadCredits={loadCredits} />
       )}
 
-      {tab === 'automations' && (
+      {/* Automations is feature-flagged off — infrastructure exists but UI isn't production-ready. */}
+      {/* To re-enable during local testing: set localStorage.hanziEnableAutomations = '1' and refresh. */}
+      {tab === 'automations' && typeof localStorage !== 'undefined' && localStorage.getItem('hanziEnableAutomations') === '1' && (
         <AutomationsTab sessions={sessions} workspaceId={profile?.workspace?.id} setError={setError} />
       )}
 
@@ -508,6 +510,9 @@ function SessionsTab({ sessions, onRefresh, usage }) {
         <div class="card"><p class="step-explain">No sessions yet. Go to Getting Started to pair a browser.</p></div>
       )}
 
+      {/* Recent task runs */}
+      <RecentTasksCard />
+
       {/* Usage */}
       <div class="card">
         <h3>Usage</h3>
@@ -519,6 +524,73 @@ function SessionsTab({ sessions, onRefresh, usage }) {
       </div>
 
       <button class="btn-secondary" onClick={onRefresh} style={{ marginTop: 8, fontSize: 12 }}>Refresh</button>
+    </div>
+  );
+}
+
+function RecentTasksCard() {
+  const [tasks, setTasks] = useState(null);
+  const [expandedId, setExpandedId] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      const r = await api('GET', '/v1/tasks');
+      if (r?.ok && Array.isArray(r.data?.tasks)) {
+        setTasks(r.data.tasks);
+      } else if (r?.ok && Array.isArray(r.data)) {
+        setTasks(r.data);
+      } else {
+        setError('Could not load recent tasks');
+        setTasks([]);
+      }
+    })();
+  }, []);
+
+  if (tasks === null) {
+    return <div class="card"><h3>Recent tasks</h3><p class="step-explain">Loading…</p></div>;
+  }
+  if (tasks.length === 0) {
+    return <div class="card"><h3>Recent tasks</h3><p class="step-explain">{error || 'No tasks run yet. Try one from Getting Started.'}</p></div>;
+  }
+
+  const badge = (status) => {
+    const color = status === 'complete' ? 'var(--green)' : status === 'error' ? 'var(--red, #9a2e2e)' : status === 'cancelled' ? 'var(--muted)' : '#1d6fa5';
+    return <span style={{ fontSize: 11, color, fontWeight: 600, padding: '2px 8px', borderRadius: 999, background: 'rgba(0,0,0,0.03)' }}>{status}</span>;
+  };
+
+  return (
+    <div class="card">
+      <h3>Recent tasks</h3>
+      <div style={{ display: 'grid', gap: 6, marginTop: 8 }}>
+        {tasks.slice(0, 20).map(t => {
+          const id = t.id;
+          const status = t.status;
+          const task = t.task || t.prompt || '(no task text)';
+          const created = t.created_at || t.createdAt;
+          const duration = t.completed_at && created ? Math.round((t.completed_at - created) / 1000) + 's' : null;
+          const expanded = expandedId === id;
+          return (
+            <div key={id} style={{ borderBottom: '1px solid var(--line, #e5ddd0)', padding: '8px 0', cursor: 'pointer' }} onClick={() => setExpandedId(expanded ? null : id)}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 13, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task}</span>
+                {badge(status)}
+                {duration && <span style={{ fontSize: 11, color: 'var(--muted)' }}>{duration}</span>}
+                <span style={{ fontSize: 11, color: 'var(--muted)' }}>{timeAgo(created)}</span>
+              </div>
+              {expanded && (
+                <div style={{ marginTop: 8, padding: 10, background: 'rgba(0,0,0,0.02)', borderRadius: 6, fontSize: 12 }}>
+                  {t.answer ? <div><strong>Answer:</strong> {t.answer}</div> : <div class="step-explain">No answer recorded.</div>}
+                  {t.error && <div style={{ marginTop: 6, color: 'var(--red, #9a2e2e)' }}><strong>Error:</strong> {t.error}</div>}
+                  <div style={{ marginTop: 6, color: 'var(--muted)', fontSize: 11 }}>
+                    Task ID: <code>{id}</code> · Session: <code>{(t.browser_session_id || t.browserSessionId || '').slice(0, 8)}…</code>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -640,8 +712,10 @@ function BuyCreditsButtons({ loadCredits, setError }) {
     setBuying(false);
     if (r?.data?.url) {
       window.location.href = r.data.url;
+    } else if (r?.data?.error === 'billing_unconfigured' || r?.status === 501) {
+      setError('Paid credits aren’t enabled on this workspace yet. You can keep using the 20 free tasks/month — email hanzili0217@gmail.com to add credits.');
     } else {
-      setError(r?.data?.error || 'Billing not available yet');
+      setError(r?.data?.error || 'Checkout failed — please try again or contact support.');
     }
   };
 
