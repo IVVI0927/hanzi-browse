@@ -547,15 +547,16 @@ function RecentTasksCard() {
     return <div class="card"><h3>Recent tasks</h3><p class="step-explain">{error || 'No tasks run yet. Try one from Getting Started.'}</p></div>;
   }
 
-  const badge = (status) => {
-    const color = status === 'complete' ? 'var(--green)' : status === 'error' ? 'var(--red, #9a2e2e)' : status === 'cancelled' ? 'var(--muted)' : '#1d6fa5';
-    return <span style={{ fontSize: 11, color, fontWeight: 600, padding: '2px 8px', borderRadius: 999, background: 'rgba(0,0,0,0.03)' }}>{status}</span>;
-  };
+  const statusColor = (s) =>
+    s === 'complete' ? 'var(--green)' :
+    s === 'error' ? 'var(--red, #9a2e2e)' :
+    s === 'cancelled' ? 'var(--muted)' :
+    '#1d6fa5';
 
   return (
     <div class="card">
       <h3>Recent tasks</h3>
-      <div style={{ display: 'grid', gap: 6, marginTop: 8 }}>
+      <div style={{ display: 'grid', gap: 2, marginTop: 10 }}>
         {tasks.slice(0, 20).map(t => {
           const id = t.id;
           const status = t.status;
@@ -564,20 +565,60 @@ function RecentTasksCard() {
           const duration = t.completed_at && created ? Math.round((t.completed_at - created) / 1000) + 's' : null;
           const expanded = expandedId === id;
           return (
-            <div key={id} style={{ borderBottom: '1px solid var(--line, #e5ddd0)', padding: '8px 0', cursor: 'pointer' }} onClick={() => setExpandedId(expanded ? null : id)}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 13, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task}</span>
-                {badge(status)}
-                {duration && <span style={{ fontSize: 11, color: 'var(--muted)' }}>{duration}</span>}
-                <span style={{ fontSize: 11, color: 'var(--muted)' }}>{timeAgo(created)}</span>
+            <div
+              key={id}
+              style={{
+                borderTop: '1px solid var(--line, #e5ddd0)',
+                padding: '10px 2px',
+                cursor: 'pointer',
+              }}
+              onClick={() => setExpandedId(expanded ? null : id)}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                {/* status dot */}
+                <span
+                  aria-label={status}
+                  title={status}
+                  style={{
+                    flexShrink: 0,
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    background: statusColor(status),
+                  }}
+                />
+                {/* task text — min-width:0 is REQUIRED for ellipsis inside a flex child */}
+                <span
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    fontSize: 13,
+                    color: 'var(--ink)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {task}
+                </span>
+                {/* right-aligned metadata */}
+                <span style={{ flexShrink: 0, fontSize: 11, color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' }}>
+                  {duration ? `${duration} · ` : ''}{timeAgo(created)}
+                </span>
               </div>
               {expanded && (
-                <div style={{ marginTop: 8, padding: 10, background: 'rgba(0,0,0,0.02)', borderRadius: 6, fontSize: 12 }}>
-                  {t.answer ? <div><strong>Answer:</strong> {t.answer}</div> : <div class="step-explain">No answer recorded.</div>}
-                  {t.error && <div style={{ marginTop: 6, color: 'var(--red, #9a2e2e)' }}><strong>Error:</strong> {t.error}</div>}
-                  <div style={{ marginTop: 6, color: 'var(--muted)', fontSize: 11 }}>
-                    Task ID: <code>{id}</code> · Session: <code>{(t.browser_session_id || t.browserSessionId || '').slice(0, 8)}…</code>
+                <div style={{ marginTop: 8, padding: 10, background: 'rgba(0,0,0,0.02)', borderRadius: 6, fontSize: 12, whiteSpace: 'pre-wrap' }}>
+                  <div style={{ color: 'var(--muted)', fontSize: 11, marginBottom: 6 }}>
+                    Status: <strong style={{ color: statusColor(status) }}>{status}</strong>
+                    {' · '}
+                    Steps: {t.steps ?? '?'}
+                    {' · '}
+                    ID: <code>{id.slice(0, 8)}…</code>
+                    {(t.browser_session_id || t.browserSessionId) && <> · Session: <code>{(t.browser_session_id || t.browserSessionId).slice(0, 8)}…</code></>}
                   </div>
+                  <div style={{ marginBottom: 6 }}><strong>Task:</strong> {task}</div>
+                  {t.answer ? <div><strong>Result:</strong> {t.answer}</div> : <div class="step-explain">No result recorded.</div>}
+                  {t.error && <div style={{ marginTop: 6, color: 'var(--red, #9a2e2e)' }}><strong>Error:</strong> {t.error}</div>}
                 </div>
               )}
             </div>
