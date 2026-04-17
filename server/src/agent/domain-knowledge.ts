@@ -11,8 +11,14 @@ import { dirname, join } from "path";
 interface DomainEntry {
   domain: string;
   antiBot?: boolean;
+  /** ISO date (YYYY-MM-DD) the golden tasks last passed. */
+  lastVerified?: string | null;
+  /** Path (relative to server/) to the YAML of golden tasks for this domain. */
+  goldenTasks?: string | null;
   skill: string;
 }
+
+export type { DomainEntry };
 
 // Load from shared JSON file
 const __filename = fileURLToPath(import.meta.url);

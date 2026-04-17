@@ -5,6 +5,6 @@ export default defineConfig({
     root: '.',
     // src/managed/*.test.ts use a custom runner (not vitest describe/it) — excluded.
     // CLI hardening adds vitest tests under src/cli/ only.
-    include: ['test/**/*.test.ts', 'src/cli/**/*.test.ts', 'evals/**/*.test.ts'],
+    include: ['test/**/*.test.ts', 'src/cli/**/*.test.ts', 'src/agent/**/*.test.ts', 'evals/**/*.test.ts'],
   },
 });
