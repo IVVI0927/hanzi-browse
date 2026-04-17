@@ -147,7 +147,7 @@ make stop     # Stop Postgres
 
 Production: Neon Postgres. Schema: `server/src/managed/schema.sql`.
 Development: Docker Postgres on port 5433.
-Tables: workspaces, api_keys, browser_sessions, task_runs, task_steps, usage_events, automations, automation_drafts, engagement_log.
+Tables: workspaces, api_keys, browser_sessions, task_runs, task_steps, usage_events.
 
 ### Deployment
 

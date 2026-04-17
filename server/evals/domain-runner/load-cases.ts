@@ -14,6 +14,9 @@ export function loadGoldenFile(path: string): GoldenFile {
     throw new Error(`\`cases\` must be an array in ${path}`);
   }
   const cases: GoldenCase[] = raw.cases.map((c: any, i: number) => {
+    if (!c || typeof c !== "object") {
+      throw new Error(`Case ${i} in ${path}: not an object`);
+    }
     if (typeof c.id !== "string") {
       throw new Error(`Case ${i} in ${path}: missing \`id\``);
     }

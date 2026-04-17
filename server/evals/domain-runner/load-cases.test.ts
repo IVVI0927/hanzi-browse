@@ -52,4 +52,19 @@ cases:
     expect(() => loadGoldenFile(path)).toThrow(/success_check/);
     rmSync(dir, { recursive: true, force: true });
   });
+
+  it("rejects a non-object case entry", () => {
+    const dir = mkdtempSync(join(tmpdir(), "gold-"));
+    const path = join(dir, "bad3.yaml");
+    writeFileSync(
+      path,
+      `
+domain: x.com
+cases:
+  - "oops"
+`
+    );
+    expect(() => loadGoldenFile(path)).toThrow(/not an object/);
+    rmSync(dir, { recursive: true, force: true });
+  });
 });
