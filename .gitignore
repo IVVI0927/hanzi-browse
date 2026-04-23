@@ -10,7 +10,9 @@ STRUCTURED_LOGGING.md
 *.local.md
 
 # Unused code
+# Ignore generated or non-source docs
 docs/*
+!docs/*.md
 !docs/architecture-diagram.png
 !docs/logo.svg
 !docs/diagrams/
